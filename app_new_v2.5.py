@@ -4,13 +4,17 @@ import re
 import os
 from collections import defaultdict
 from datetime import datetime
-from kbcstorage.client import Client
+from keboola_streamlit import KeboolaStreamlit
 
 st.set_page_config(layout="wide")
 
 # ==================== KEBOOLA CONFIGURATION ====================
-KEBOOLA_URL = os.environ.get("KEBOOLA_URL") or st.secrets.get("KEBOOLA_URL")
-STORAGE_TOKEN = os.environ.get("STORAGE_TOKEN") or st.secrets.get("STORAGE_TOKEN")
+URL = st.secrets.get("KEBOOLA_URL")
+TOKEN = st.secrets.get("STORAGE_API_TOKEN")
+
+if not URL or not TOKEN:
+    st.error("❌ Chýbajú Keboola secrets (KEBOOLA_URL, STORAGE_API_TOKEN)")
+    st.stop()
 
 # Keboola Table IDs (mapping)
 TABLES = {
@@ -28,51 +32,54 @@ TABLES = {
     'trx_count': 'out.c-ABC.ABC_CALC_TRANSACTIONS'
 }
 
-# CSV Settings - UTF-8 s čiarkou a bodkočiarkou
-CSV_ENCODING = 'utf-8'
-CSV_SEPARATOR = ';'
-CSV_DECIMAL = ','
-
 # ==================== KEBOOLA CLIENT INITIALIZATION ====================
 @st.cache_resource
-def init_keboola_client():
-    """Inicializácia a cachovanie Keboola Storage klienta"""
+def get_keboola_client():
+    """Inicializácia a cachovanie Keboola klienta"""
     try:
-        client = Client(KEBOOLA_URL, STORAGE_TOKEN)
-        return client
+        return KeboolaStreamlit(root_url=URL, token=TOKEN)
     except Exception as e:
-        st.error(f"❌ Chyba pri inicializácii Keboola klienta: {e}")
+        st.error(f"❌ Chyba pri inicializácii Keboola klienta: {str(e)}")
         return None
 
-client = init_keboola_client()
+@st.cache_resource
+def get_snowflake_session():
+    """Inicializácia Snowflake session"""
+    try:
+        client = get_keboola_client()
+        if client:
+            return client.snowflake_create_session_object()
+        return None
+    except Exception as e:
+        st.error(f"❌ Chyba pri vytváraní Snowflake session: {str(e)}")
+        return None
+
+client = get_keboola_client()
+session = get_snowflake_session()
 
 # ==================== KEBOOLA DATA LOADING ====================
 def load_table_from_keboola(table_id):
-    """Načítanie tabuľky z Keboola Storage"""
-    if client is None:
+    """Načítanie tabuľky z Keboola Storage cez Snowflake"""
+    if client is None or session is None:
         st.error("❌ Keboola klient nie je inicializovaný")
         return None
     
     try:
-        # Exportuj tabuľku do CSV
-        temp_file = f"temp_{table_id.split('.')[-1]}.csv"
-        client.tables.export_to_file(table_id, '.')
+        # Konvertuj table_id na Snowflake format: out.c-ABC.ABC_TABLE -> KEBOOLA_47."out.c-ABC".ABC_TABLE
+        parts = table_id.split('.')
+        if len(parts) == 3:
+            schema = f'"{parts[0]}.{parts[1]}"'
+            table_name = parts[2]
+            query = f"SELECT * FROM KEBOOLA_47.{schema}.{table_name}"
+        else:
+            st.error(f"❌ Neplatný formát table_id: {table_id}")
+            return None
         
-        # Načítaj CSV s UTF-8, bodkočiarkou a čiarkou ako desatinný oddeľovač
-        df = pd.read_csv(
-            temp_file,
-            encoding=CSV_ENCODING,
-            sep=CSV_SEPARATOR,
-            decimal=CSV_DECIMAL
-        )
-        
-        # Vyčisti dočasný súbor
-        if os.path.exists(temp_file):
-            os.remove(temp_file)
-        
-        return df
+        data = client.snowflake_execute_query(session=session, query=query)
+        return pd.DataFrame(data)
+    
     except Exception as e:
-        st.error(f"❌ Chyba pri načítaní tabuľky {table_id}: {e}")
+        st.error(f"❌ Chyba pri načítaní tabuľky {table_id}: {str(e)}")
         return None
 
 @st.cache_data(ttl=300)
@@ -114,7 +121,7 @@ def load_data():
         return trans_data, fte_data, cc_user, saved_forms, saved_bs, bl_order, gpm_order, prod_mask_order, channel_mask_order, version, cc_desc, trx_count
     
     except Exception as e:
-        st.error(f"❌ Chyba pri načítaní dát: {e}")
+        st.error(f"❌ Chyba pri načítaní dát: {str(e)}")
         return None, None, None, None, None, None, None, None, None, None, None, None
 
 def load_dynamic_data():
@@ -137,43 +144,39 @@ def load_dynamic_data():
         return cc_user, saved_forms, saved_bs
     
     except Exception as e:
-        st.error(f"❌ Chyba pri načítaní dynamických dát: {e}")
+        st.error(f"❌ Chyba pri načítaní dynamických dát: {str(e)}")
         return None, None, None
 
 # ==================== KEBOOLA DATA SAVING ====================
-def save_data_to_keboola(df, table_id, is_incremental=True):
-    """Uloženie dát do Keboola Storage"""
-    if client is None:
+def save_data_to_keboola(df, table_id):
+    """Uloženie dát do Keboola Storage cez Snowflake"""
+    if client is None or session is None:
         st.error("❌ Keboola klient nie je inicializovaný")
         return False
     
     try:
-        temp_file = f"temp_upload_{table_id.split('.')[-1]}.csv"
+        # Konvertuj table_id na Snowflake format
+        parts = table_id.split('.')
+        if len(parts) != 3:
+            st.error(f"❌ Neplatný formát table_id: {table_id}")
+            return False
         
-        # Ulož dataframe do CSV s UTF-8, bodkočiarkou a čiarkou
-        df.to_csv(
-            temp_file,
-            sep=CSV_SEPARATOR,
-            encoding=CSV_ENCODING,
-            index=False,
-            decimal=CSV_DECIMAL
-        )
+        schema = f'"{parts[0]}.{parts[1]}"'
+        table_name = parts[2]
+        full_table = f"KEBOOLA_47.{schema}.{table_name}"
         
-        # Nahraj do Keboola Storage (append mode)
-        client.tables.load(
-            table_id=table_id,
-            file_path=temp_file,
-            is_incremental=is_incremental
-        )
-        
-        # Vyčisti dočasný súbor
-        if os.path.exists(temp_file):
-            os.remove(temp_file)
+        # Vytvor INSERT query z dataframe
+        for _, row in df.iterrows():
+            columns = ', '.join(df.columns)
+            values = ', '.join([f"'{str(val).replace(chr(39), chr(39)*2)}'" if pd.notna(val) else 'NULL' for val in row])
+            insert_query = f"INSERT INTO {full_table} ({columns}) VALUES ({values})"
+            
+            client.snowflake_execute_query(session=session, query=insert_query)
         
         return True
     
     except Exception as e:
-        st.error(f"❌ Chyba pri ukladaní dát do {table_id}: {e}")
+        st.error(f"❌ Chyba pri ukladaní dát do {table_id}: {str(e)}")
         return False
 
 # ==================== HELPER FUNCTIONS ====================
