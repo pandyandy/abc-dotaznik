@@ -55,32 +55,28 @@ def load_table_from_keboola(table_id):
         return None
     
     try:
+        # Export table to CSV
+        client.tables.export_to_file(table_id, '.')
+        
+        # The file is saved with the table name
         table_name = table_id.split('.')[-1]
-        temp_file = f"temp_{table_name}.csv"
+        file_path = f"{table_name}"
         
-        # Správna syntaxa - bez path_name, len dva argumenty
-        client.tables.export_to_file(table_id, temp_file)
+        # Read the CSV file
+        df = pd.read_csv(file_path)
         
-        # Načítaj CSV
-        df = pd.read_csv(
-            temp_file,
-            encoding=CSV_ENCODING,
-            sep=CSV_SEPARATOR,
-            decimal=CSV_DECIMAL
-        )
-        
-        # Vyčisti dočasný súbor
-        if os.path.exists(temp_file):
-            os.remove(temp_file)
+        # Clean up the file
+        if os.path.exists(file_path):
+            os.remove(file_path)
         
         return df
     except FileNotFoundError as e:
         st.error(f"❌ Súbor sa nenašiel: {e}")
         return None
     except Exception as e:
-        st.error(f"❌ Chyba pri načítaní tabuľky {table_id}: {e}")
+        st.error(f"Error loading data: {e}")
         return None
-      
+
 @st.cache_data(ttl=300)
 def load_data():
     """Načítanie všetkých potrebných dát s optimalizáciou verzií"""
