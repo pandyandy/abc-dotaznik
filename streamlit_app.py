@@ -242,9 +242,9 @@ def create_hierarchy(trans_data):
     
     for _, row in trans_data.iterrows():
         bl = str(row['BL']).strip() if pd.notna(row['BL']) else ''
-        product = str(row['Product']).strip() if pd.notna(row['Product']) else ''
-        trans_type = str(row['Trans_type']).strip() if pd.notna(row['Trans_type']) else ''
-        channel = str(row['Channel']).strip() if pd.notna(row['Channel']) else ''
+        product = str(row['PRODUCT']).strip() if pd.notna(row['PRODUCT']) else ''
+        trans_type = str(row['TRANS_TYPE']).strip() if pd.notna(row['TRANS_TYPE']) else ''
+        channel = str(row['CHANNEL']).strip() if pd.notna(row['CHANNEL']) else ''
         
         if bl and product and trans_type and channel:
             hierarchy['bl_to_products'][bl].add(product)
