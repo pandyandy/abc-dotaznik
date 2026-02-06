@@ -24,7 +24,7 @@ TABLES = {
     'gpm_order': 'out.c-ABC.ABC_FORM_GPM_MAP',
     'prod_mask_order': 'out.c-ABC.ABC_FORM_PROD_MAP',
     'channel_mask_order': 'out.c-ABC.ABC_FORM_CHANNEL_MAP',
-    'version': 'out.c-ABC.ABC_FORM_VERSION',
+    'version': 'out.c-ABC.ABC_VERSION',
     'cc_desc': 'out.c-ABC.ABC_FORM_CC_DESC',
     'trx_count': 'out.c-ABC.ABC_CALC_TRANSACTIONS'
 }
