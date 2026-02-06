@@ -58,11 +58,8 @@ def load_table_from_keboola(table_id):
         table_name = table_id.split('.')[-1]
         temp_file = f"temp_{table_name}.csv"
         
-        # SPRÁVNE: export_to_file potrebuje úplnú cestu k súboru
-        client.tables.export_to_file(
-            table_id=table_id, 
-            path_name=temp_file  # Niektoré verzie používajú 'path_name' namiesto druhého parametra
-        )
+        # Správna syntaxa - bez path_name, len dva argumenty
+        client.tables.export_to_file(table_id, temp_file)
         
         # Načítaj CSV
         df = pd.read_csv(
