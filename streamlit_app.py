@@ -63,7 +63,7 @@ def load_table_from_keboola(table_id):
         file_path = f"{table_name}"
         
         # Read the CSV file
-        df = pd.read_csv(file_path)
+        df = pd.read_csv(file_path, encoding='utf-8', sep=';', decimal=',')
         
         # Clean up the file
         if os.path.exists(file_path):
