@@ -4,7 +4,7 @@ import re
 import os
 from collections import defaultdict
 from datetime import datetime
-from keboola_streamlit import KeboolaStreamlit
+#from keboola_streamlit import KeboolaStreamlit
 from kbcstorage.client import Client
 
 st.set_page_config(layout="wide")
