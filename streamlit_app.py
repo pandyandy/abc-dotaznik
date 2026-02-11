@@ -4,7 +4,7 @@ import re
 import os
 from collections import defaultdict
 from datetime import datetime
-#from keboola_streamlit import KeboolaStreamlit
+from keboola_streamlit import KeboolaStreamlit
 from kbcstorage.client import Client
 
 st.set_page_config(layout="wide")
@@ -32,7 +32,7 @@ TABLES = {
 # CSV Settings - UTF-8 s čiarkou a bodkočiarkou
 CSV_ENCODING = 'utf-8'
 CSV_SEPARATOR = ';'
-CSV_DECIMAL = '.'
+CSV_DECIMAL = ','
 
 # ==================== KEBOOLA CLIENT INITIALIZATION ====================
 @st.cache_resource
@@ -62,7 +62,7 @@ def load_table_from_keboola(table_id):
         table_name = table_id.split('.')[-1]
         file_path = f"{table_name}"
         
-        # Read the CSV file
+        # Read the CSV file - nechajme na nativne spravanie (Keboola má svoje nativne nastavenie)
         df = pd.read_csv(file_path)
         
         # Clean up the file
@@ -70,13 +70,10 @@ def load_table_from_keboola(table_id):
             os.remove(file_path)
         
         return df
-    except FileNotFoundError as e:
-        st.error(f"❌ Súbor sa nenašiel: {e}")
-        return None
     except Exception as e:
         st.error(f"Error loading data: {e}")
         return None
-
+      
 @st.cache_data(ttl=300)
 def load_data():
     """Načítanie všetkých potrebných dát s optimalizáciou verzií"""
@@ -144,7 +141,7 @@ def load_dynamic_data():
 
 # ==================== KEBOOLA DATA SAVING ====================
 def save_data_to_keboola(df, table_id, is_incremental=True):
-    """Uloženie dát do Keboola Storage"""
+    """Uloženie dát do Keboola Storage - konvertuje čiarky na bodky"""
     if client is None:
         st.error("❌ Keboola klient nie je inicializovaný")
         return False
@@ -152,13 +149,21 @@ def save_data_to_keboola(df, table_id, is_incremental=True):
     try:
         temp_file = f"temp_upload_{table_id.split('.')[-1]}.csv"
         
-        # Ulož dataframe do CSV s UTF-8, bodkočiarkou a čiarkou
-        df.to_csv(
-            temp_file,
-            sep=CSV_SEPARATOR,
-            encoding=CSV_ENCODING,
-            index=False,
-            decimal=CSV_DECIMAL
+        # Vytvor kopiu pre zápis
+        df_to_save = df.copy()
+        
+        # Konvertuj čiarky na bodky v stĺpcoch s číslami
+        # (používateľ videl čiarku, ale teraz konvertujeme na bodku pre Keboolu)
+        numeric_columns = ['RAT_BL', 'RAT_PROD', 'RAT_ACTIVITY', 'RAT_CHANNEL', 'RAT_TOTAL']
+        for col in numeric_columns:
+            if col in df_to_save.columns:
+                # Stringy s čiarkami konvertuj na bodky
+                df_to_save[col] = df_to_save[col].astype(str).str.replace(',', '.')
+        
+        # Ulož do CSV - stringy sú už prekonvertované na bodky
+        # Nechajme na nativne spravanie (Keboola má svoje nativne nastavenie)
+        df_to_save.to_csv(
+            temp_file
         )
         
         # Nahraj do Keboola Storage (append mode)
@@ -201,7 +206,7 @@ st.markdown(
             if (e.target.type === 'number') {
                 let value = e.target.value;
                 if (value.includes(',')) {
-                    e.target.value = value.replace(',', '.');
+                    e.target.value = value.split(',').join('.');  // Nahrad VŠETKY čiarky bodkami
                 }
             }
         });
@@ -210,7 +215,7 @@ st.markdown(
             if (e.target.type === 'number') {
                 let value = e.target.value;
                 if (value.includes(',')) {
-                    e.target.value = value.replace(',', '.');
+                    e.target.value = value.split(',').join('.');  // Nahrad VŠETKY čiarky bodkami
                 }
             }
         });
@@ -375,10 +380,10 @@ def get_existing_forms_by_status(CC, VERSION, saved_forms, status_filter):
     
     result = saved_forms[mask] if not saved_forms[mask].empty else pd.DataFrame()
     
-    # Konverzia čiarok na bodky
+    # Nativny format z Kebooly: čísla sú s bodkami (alebo numeric), žiadna konverzia nie je potrebná
     for col in ['RAT_BL', 'RAT_PROD', 'RAT_ACTIVITY', 'RAT_CHANNEL', 'RAT_TOTAL']:
-        if col in result.columns:
-            result[col] = result[col].astype(str).str.replace(',', '.').astype(float)
+        if col in result.columns and result[col].dtype == 'object':
+            result[col] = pd.to_numeric(result[col], errors='coerce')
     
     return result
 
@@ -394,10 +399,10 @@ def get_existing_from_prev_version(CC, prev_version, saved_forms):
     
     result = saved_forms[mask] if not saved_forms[mask].empty else pd.DataFrame()
     
-    # Konverzia čiarok na bodky
+    # Nativny format z Kebooly: čísla sú s bodkami (alebo numeric), žiadna konverzia nie je potrebná
     for col in ['RAT_BL', 'RAT_PROD', 'RAT_ACTIVITY', 'RAT_CHANNEL', 'RAT_TOTAL']:
-        if col in result.columns:
-            result[col] = result[col].astype(str).str.replace(',', '.').astype(float)
+        if col in result.columns and result[col].dtype == 'object':
+            result[col] = pd.to_numeric(result[col], errors='coerce')
     
     return result
 
@@ -443,8 +448,10 @@ def save_form_step(USER_ID, CC, VERSION, form_data, saved_forms, bl_order, statu
         df_saved = df_saved[~mask_old]
     
     def convert_to_comma_decimal(val):
+        """Konvertuj na čiarku pre UI formulára (používateľ vidí čiarku)"""
         if val is None or val == 0 or val == '':
             return '0'
+        # val je Python float s bodkou, konvertuj na string s čiarkou pre UI
         return str(float(val)).replace('.', ',')
     
     bl = form_data.get('BL', '')
@@ -500,8 +507,9 @@ def get_existing_forms_by_status_bs(CC, VERSION, saved_bs):
     )
     result = saved_bs[mask] if not saved_bs[mask].empty else pd.DataFrame()
     
-    if 'RAT_TOTAL' in result.columns:
-        result['RAT_TOTAL'] = result['RAT_TOTAL'].astype(str).str.replace(',', '.').astype(float)
+    # Nativny format z Kebooly: čísla sú s bodkami (alebo numeric)
+    if 'RAT_TOTAL' in result.columns and result['RAT_TOTAL'].dtype == 'object':
+        result['RAT_TOTAL'] = pd.to_numeric(result['RAT_TOTAL'], errors='coerce')
     
     return result
 
@@ -517,8 +525,9 @@ def get_existing_bs_from_prev_version(CC, prev_version, saved_bs):
     
     result = saved_bs[mask] if not saved_bs[mask].empty else pd.DataFrame()
     
-    if 'RAT_TOTAL' in result.columns:
-        result['RAT_TOTAL'] = result['RAT_TOTAL'].astype(str).str.replace(',', '.').astype(float)
+    # Nativny format z Kebooly: čísla sú s bodkami (alebo numeric)
+    if 'RAT_TOTAL' in result.columns and result['RAT_TOTAL'].dtype == 'object':
+        result['RAT_TOTAL'] = pd.to_numeric(result['RAT_TOTAL'], errors='coerce')
     
     return result
 
@@ -537,8 +546,10 @@ def save_form_bs(USER_ID, CC, VERSION, form_data, saved_bs, bl_order):
     df_saved = df_saved[~mask_old]
     
     def convert_to_comma_decimal(val):
+        """Konvertuj na čiarku pre UI formulára (používateľ vidí čiarku)"""
         if val is None or val == 0 or val == '':
             return '0'
+        # val je Python float s bodkou, konvertuj na string s čiarkou pre UI
         return str(float(val)).replace('.', ',')
     
     rows_to_insert = []
@@ -689,10 +700,11 @@ def main():
                             trans_type = row['GPM_HIER'] if pd.notna(row['GPM_HIER']) and row['GPM_HIER'] != '' else None
                             channel = row['TXT_CHANNEL'] if pd.notna(row['TXT_CHANNEL']) and row['TXT_CHANNEL'] != '' else None
                             
-                            rat_bl = float(str(row['RAT_BL']).replace(',', '.')) if pd.notna(row['RAT_BL']) else 0
-                            rat_prod = float(str(row['RAT_PROD']).replace(',', '.')) if pd.notna(row['RAT_PROD']) else 0
-                            rat_act = float(str(row['RAT_ACTIVITY']).replace(',', '.')) if pd.notna(row['RAT_ACTIVITY']) else 0
-                            rat_chan = float(str(row['RAT_CHANNEL']).replace(',', '.')) if pd.notna(row['RAT_CHANNEL']) else 0
+                            # Nativny format z Kebooly je s bodkou
+                            rat_bl = float(row['RAT_BL']) if pd.notna(row['RAT_BL']) else 0
+                            rat_prod = float(row['RAT_PROD']) if pd.notna(row['RAT_PROD']) else 0
+                            rat_act = float(row['RAT_ACTIVITY']) if pd.notna(row['RAT_ACTIVITY']) else 0
+                            rat_chan = float(row['RAT_CHANNEL']) if pd.notna(row['RAT_CHANNEL']) else 0
                             
                             if bl and rat_bl > 0:
                                 st.session_state.selected_bls[bl] = rat_bl
@@ -929,14 +941,14 @@ def main():
                             (saved_forms['VERSION'].astype(str) == str(act_version)) &
                             (saved_forms['BL'] == bl) &
                             (saved_forms['DOM_ABC_PROD'] == masked_product) &
-                            (saved_forms['RAT_PROD'].astype(str).str.replace(',', '.').astype(float) > 0)
+                            (pd.to_numeric(saved_forms['RAT_PROD'], errors='coerce') > 0)
                         ].empty:
                             should_auto_check = True
                     else:
                         if not prev_forms.empty and not prev_forms[
                             (prev_forms['BL'] == bl) & 
                             (prev_forms['DOM_ABC_PROD'] == masked_product) &
-                            (prev_forms['RAT_PROD'].astype(str).str.replace(',', '.').astype(float) > 0)
+                            (pd.to_numeric(prev_forms['RAT_PROD'], errors='coerce') > 0)
                         ].empty:
                             should_auto_check = True
                     
@@ -965,7 +977,7 @@ def main():
                                 (saved_forms['DOM_ABC_PROD'] == masked_product)
                             ]
                             if not current_row.empty:
-                                default_value = float(str(current_row.iloc[0]['RAT_PROD']).replace(',', '.')) if pd.notna(current_row.iloc[0]['RAT_PROD']) else 0.0
+                                default_value = float(current_row.iloc[0]['RAT_PROD']) if pd.notna(current_row.iloc[0]['RAT_PROD']) else 0.0
                         else:
                             if not prev_forms.empty:
                                 prev_row = prev_forms[
@@ -973,7 +985,7 @@ def main():
                                     (prev_forms['DOM_ABC_PROD'] == masked_product)
                                 ]
                                 if not prev_row.empty:
-                                    default_value = float(str(prev_row.iloc[0]['RAT_PROD']).replace(',', '.')) if pd.notna(prev_row.iloc[0]['RAT_PROD']) else 0.0
+                                    default_value = float(prev_row.iloc[0]['RAT_PROD']) if pd.notna(prev_row.iloc[0]['RAT_PROD']) else 0.0
                         
                         allocation = st.number_input(
                             f"",
@@ -1196,7 +1208,7 @@ def main():
                             (saved_forms['BL'] == bl) &
                             (saved_forms['DOM_ABC_PROD'] == masked_product) &
                             (saved_forms['GPM_HIER'] == trans_type) &
-                            (saved_forms['RAT_ACTIVITY'].astype(str).str.replace(',', '.').astype(float) > 0)
+                            (pd.to_numeric(saved_forms['RAT_ACTIVITY'], errors='coerce') > 0)
                         ].empty:
                             should_auto_check = True
                     else:
@@ -1204,7 +1216,7 @@ def main():
                             (prev_forms['BL'] == bl) & 
                             (prev_forms['DOM_ABC_PROD'] == masked_product) & 
                             (prev_forms['GPM_HIER'] == trans_type) &
-                            (prev_forms['RAT_ACTIVITY'].astype(str).str.replace(',', '.').astype(float) > 0)
+                            (pd.to_numeric(prev_forms['RAT_ACTIVITY'], errors='coerce') > 0)
                         ].empty:
                             should_auto_check = True
                     
@@ -1234,7 +1246,7 @@ def main():
                                 (saved_forms['GPM_HIER'] == trans_type)
                             ]
                             if not current_row.empty:
-                                default_value = float(str(current_row.iloc[0]['RAT_ACTIVITY']).replace(',', '.')) if pd.notna(current_row.iloc[0]['RAT_ACTIVITY']) else 0.0
+                                default_value = float(current_row.iloc[0]['RAT_ACTIVITY']) if pd.notna(current_row.iloc[0]['RAT_ACTIVITY']) else 0.0
                         else:
                             if not prev_forms.empty:
                                 prev_row = prev_forms[
@@ -1243,7 +1255,7 @@ def main():
                                     (prev_forms['GPM_HIER'] == trans_type)
                                 ]
                                 if not prev_row.empty:
-                                    default_value = float(str(prev_row.iloc[0]['RAT_ACTIVITY']).replace(',', '.')) if pd.notna(prev_row.iloc[0]['RAT_ACTIVITY']) else 0.0
+                                    default_value = float(prev_row.iloc[0]['RAT_ACTIVITY']) if pd.notna(prev_row.iloc[0]['RAT_ACTIVITY']) else 0.0
                         
                         allocation = st.number_input(
                             f"",
@@ -1438,7 +1450,7 @@ def main():
                             (saved_forms['DOM_ABC_PROD'] == masked_product) & 
                             (saved_forms['GPM_HIER'] == trans_type) &
                             (saved_forms['TXT_CHANNEL'] == masked_channel) &
-                            (saved_forms['RAT_CHANNEL'].astype(str).str.replace(',', '.').astype(float) > 0)
+                            (pd.to_numeric(saved_forms['RAT_CHANNEL'], errors='coerce') > 0)
                         ].empty:
                             should_auto_check = True
                     else:
@@ -1447,7 +1459,7 @@ def main():
                             (prev_forms['DOM_ABC_PROD'] == masked_product) & 
                             (prev_forms['GPM_HIER'] == trans_type) &
                             (prev_forms['TXT_CHANNEL'] == masked_channel) &
-                            (prev_forms['RAT_CHANNEL'].astype(str).str.replace(',', '.').astype(float) > 0)
+                            (pd.to_numeric(prev_forms['RAT_CHANNEL'], errors='coerce') > 0)
                         ].empty:
                             should_auto_check = True
                     
@@ -1479,7 +1491,7 @@ def main():
                                 (saved_forms['TXT_CHANNEL'] == masked_channel)
                             ]
                             if not current_forms.empty:
-                                default_value = float(str(current_forms.iloc[0]['RAT_CHANNEL']).replace(',', '.')) if pd.notna(current_forms.iloc[0]['RAT_CHANNEL']) else 0.0
+                                default_value = float(current_forms.iloc[0]['RAT_CHANNEL']) if pd.notna(current_forms.iloc[0]['RAT_CHANNEL']) else 0.0
                         else:
                             if not prev_forms.empty:
                                 prev_row = prev_forms[
@@ -1489,7 +1501,7 @@ def main():
                                     (prev_forms['TXT_CHANNEL'] == masked_channel)
                                 ]
                                 if not prev_row.empty:
-                                    default_value = float(str(prev_row.iloc[0]['RAT_CHANNEL']).replace(',', '.')) if pd.notna(prev_row.iloc[0]['RAT_CHANNEL']) else 0.0
+                                    default_value = float(prev_row.iloc[0]['RAT_CHANNEL']) if pd.notna(prev_row.iloc[0]['RAT_CHANNEL']) else 0.0
                         
                         allocation = st.number_input(
                             f"",
