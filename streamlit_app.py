@@ -32,7 +32,7 @@ TABLES = {
 # CSV Settings - UTF-8 s čiarkou a bodkočiarkou
 CSV_ENCODING = 'utf-8'
 CSV_SEPARATOR = ';'
-CSV_DECIMAL = ','
+CSV_DECIMAL = '.'
 
 # ==================== KEBOOLA CLIENT INITIALIZATION ====================
 @st.cache_resource
@@ -63,7 +63,7 @@ def load_table_from_keboola(table_id):
         file_path = f"{table_name}"
         
         # Read the CSV file
-        df = pd.read_csv(file_path, encoding='utf-8', sep=';', decimal=',')
+        df = pd.read_csv(file_path)
         
         # Clean up the file
         if os.path.exists(file_path):
