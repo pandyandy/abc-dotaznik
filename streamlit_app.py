@@ -65,6 +65,9 @@ def load_table_from_keboola(table_id):
         # Read the CSV file - nechajme na nativne spravanie (Keboola má svoje nativne nastavenie)
         df = pd.read_csv(file_path)
         
+        # Konvertuj všetky numerické stĺpce - nahradí čiarky bodkami
+        df = convert_numeric_columns(df)
+        
         # Clean up the file
         if os.path.exists(file_path):
             os.remove(file_path)
@@ -204,6 +207,22 @@ def parse_decimal_value(value):
         return float(str_value)
     except (ValueError, TypeError):
         return 0.0
+
+def convert_numeric_columns(df):
+    """Konvertuj všetky numerické stĺpce - nahradí čiarky bodkami"""
+    df_converted = df.copy()
+    for col in df_converted.columns:
+        try:
+            # Skús konvertovať na float
+            # Najprv nahradíme čiarky bodkami v stringoch
+            if df_converted[col].dtype == 'object':  # Ak sú stringy
+                converted_series = df_converted[col].apply(lambda x: parse_decimal_value(x) if pd.notna(x) else None)
+                # Skontroluj či je to úspešne numerické
+                if pd.api.types.is_numeric_dtype(converted_series) or converted_series.notna().sum() > 0:
+                    df_converted[col] = converted_series
+        except Exception:
+            pass
+    return df_converted
 
 def get_slovak_datetime():
     """Vráti aktuálny dátum a čas vo formáte pre Slovensko"""
