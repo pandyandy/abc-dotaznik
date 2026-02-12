@@ -209,19 +209,24 @@ def parse_decimal_value(value):
         return 0.0
 
 def convert_numeric_columns(df):
-    """Konvertuj všetky numerické stĺpce - nahradí čiarky bodkami"""
+    """Konvertuj konkrétne numerické stĺpce - nahradí čiarky bodkami"""
     df_converted = df.copy()
+    
+    # Zoznam stĺpcov, ktoré majú byť numerické
+    numeric_column_patterns = ['RAT_', 'NUM_', 'FC', 'TRANSACTIONS', 'VERSION_ID', 'COUNT']
+    
     for col in df_converted.columns:
         try:
-            # Skús konvertovať na float
-            # Najprv nahradíme čiarky bodkami v stringoch
-            if df_converted[col].dtype == 'object':  # Ak sú stringy
+            # Kontroluj či stĺpec obsahuje niektorý z vzorov numerických stĺpcov
+            is_numeric_col = any(pattern in col.upper() for pattern in numeric_column_patterns)
+            
+            if is_numeric_col and df_converted[col].dtype == 'object':
+                # Konvertuj stringy s čiarkami na float
                 converted_series = df_converted[col].apply(lambda x: parse_decimal_value(x) if pd.notna(x) else None)
-                # Skontroluj či je to úspešne numerické
-                if pd.api.types.is_numeric_dtype(converted_series) or converted_series.notna().sum() > 0:
-                    df_converted[col] = converted_series
+                df_converted[col] = converted_series
         except Exception:
             pass
+    
     return df_converted
 
 def get_slovak_datetime():
@@ -753,7 +758,11 @@ def main():
                                 st.session_state.selected_channels[(bl, unmasked_product, trans_type, unmasked_channel)] = rat_chan
                     
                     form_type_row = cc_user[cc_user['CC'].astype(str) == str(CC)]
-                    form_type = form_type_row.iloc[0].get('FORM_TYPE', 'ABC').strip() if not form_type_row.empty else 'ABC'
+                    if not form_type_row.empty:
+                        form_type_value = form_type_row.iloc[0].get('FORM_TYPE', 'ABC')
+                        form_type = str(form_type_value).strip() if pd.notna(form_type_value) else 'ABC'
+                    else:
+                        form_type = 'ABC'
                     st.session_state.form_type = form_type
                     
                     if form_type == 'BS':
