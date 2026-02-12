@@ -66,9 +66,6 @@ def load_table_from_keboola(table_id):
         # Read the CSV file - nechajme na nativne spravanie (Keboola má svoje nativne nastavenie)
         df = pd.read_csv(file_path)
         
-        # Konvertuj všetky numerické stĺpce - nahradí čiarky bodkami
-        df = convert_numeric_columns(df)
-        
         # Clean up the file
         if os.path.exists(file_path):
             os.remove(file_path)
@@ -208,32 +205,6 @@ def parse_decimal_value(value):
         return float(str_value)
     except (ValueError, TypeError):
         return 0.0
-
-def convert_numeric_columns(df):
-    """Konvertuj všetky stĺpce s čiarkami na float - len bezpečne bez zmeny textových stĺpcov"""
-    df_converted = df.copy()
-    
-    for col in df_converted.columns:
-        try:
-            # Skontroluj, či stĺpec obsahuje čiarky (indikátor desatinného oddeľovača)
-            if df_converted[col].dtype == 'object':
-                # Skus konvertovať všetky hodnoty
-                test_converted = df_converted[col].astype(str).str.contains(',', na=False)
-                
-                # Ak je tam nejaká čiarka, skús konvertovať celý stĺpec
-                if test_converted.any():
-                    try:
-                        converted_series = df_converted[col].apply(lambda x: parse_decimal_value(x) if pd.notna(x) else np.nan)
-                        # Skontroluj či konverzia bola úspešná (väčšina hodnôt sú čísla)
-                        non_nan_count = converted_series.notna().sum()
-                        if non_nan_count > 0:
-                            df_converted[col] = converted_series
-                    except Exception:
-                        pass
-        except Exception:
-            pass
-    
-    return df_converted
 
 def get_slovak_datetime():
     """Vráti aktuálny dátum a čas vo formáte pre Slovensko"""
@@ -421,10 +392,10 @@ def get_existing_forms_by_status(CC, VERSION, saved_forms, status_filter):
     
     result = saved_forms[mask] if not saved_forms[mask].empty else pd.DataFrame()
     
-    # Nativny format z Kebooly: čísla sú s bodkami (alebo numeric), žiadna konverzia nie je potrebná
+    # Konvertuj číselné stĺpce - nahradí čiarky bodkami
     for col in ['RAT_BL', 'RAT_PROD', 'RAT_ACTIVITY', 'RAT_CHANNEL', 'RAT_TOTAL']:
         if col in result.columns and result[col].dtype == 'object':
-            result[col] = pd.to_numeric(result[col], errors='coerce')
+            result[col] = result[col].astype(str).str.replace(',', '.').apply(lambda x: pd.to_numeric(x, errors='coerce'))
     
     return result
 
@@ -440,10 +411,10 @@ def get_existing_from_prev_version(CC, prev_version, saved_forms):
     
     result = saved_forms[mask] if not saved_forms[mask].empty else pd.DataFrame()
     
-    # Nativny format z Kebooly: čísla sú s bodkami (alebo numeric), žiadna konverzia nie je potrebná
+    # Konvertuj číselné stĺpce - nahradí čiarky bodkami
     for col in ['RAT_BL', 'RAT_PROD', 'RAT_ACTIVITY', 'RAT_CHANNEL', 'RAT_TOTAL']:
         if col in result.columns and result[col].dtype == 'object':
-            result[col] = pd.to_numeric(result[col], errors='coerce')
+            result[col] = result[col].astype(str).str.replace(',', '.').apply(lambda x: pd.to_numeric(x, errors='coerce'))
     
     return result
 
@@ -548,9 +519,9 @@ def get_existing_forms_by_status_bs(CC, VERSION, saved_bs):
     )
     result = saved_bs[mask] if not saved_bs[mask].empty else pd.DataFrame()
     
-    # Nativny format z Kebooly: čísla sú s bodkami (alebo numeric)
+    # Konvertuj číselné stĺpce - nahradí čiarky bodkami
     if 'RAT_TOTAL' in result.columns and result['RAT_TOTAL'].dtype == 'object':
-        result['RAT_TOTAL'] = pd.to_numeric(result['RAT_TOTAL'], errors='coerce')
+        result['RAT_TOTAL'] = result['RAT_TOTAL'].astype(str).str.replace(',', '.').apply(lambda x: pd.to_numeric(x, errors='coerce'))
     
     return result
 
@@ -566,9 +537,9 @@ def get_existing_bs_from_prev_version(CC, prev_version, saved_bs):
     
     result = saved_bs[mask] if not saved_bs[mask].empty else pd.DataFrame()
     
-    # Nativny format z Kebooly: čísla sú s bodkami (alebo numeric)
+    # Konvertuj číselné stĺpce - nahradí čiarky bodkami
     if 'RAT_TOTAL' in result.columns and result['RAT_TOTAL'].dtype == 'object':
-        result['RAT_TOTAL'] = pd.to_numeric(result['RAT_TOTAL'], errors='coerce')
+        result['RAT_TOTAL'] = result['RAT_TOTAL'].astype(str).str.replace(',', '.').apply(lambda x: pd.to_numeric(x, errors='coerce'))
     
     return result
 
@@ -746,9 +717,6 @@ def main():
                             rat_prod = parse_decimal_value(row['RAT_PROD'])
                             rat_act = parse_decimal_value(row['RAT_ACTIVITY'])
                             rat_chan = parse_decimal_value(row['RAT_CHANNEL'])
-                            
-                            # Debug: skontroluj či sú hodnoty načítané
-                            st.write(f"DEBUG: BL={bl}, RAT_BL={rat_bl}, type={type(rat_bl)}")
                             
                             if bl and rat_bl > 0:
                                 st.session_state.selected_bls[bl] = rat_bl
