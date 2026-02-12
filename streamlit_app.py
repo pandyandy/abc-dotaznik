@@ -194,6 +194,17 @@ def format_number(value, decimals=2):
     else:  # decimals == 2
         return f"{value:.2f}".replace('.', ',')
 
+def parse_decimal_value(value):
+    """Bezpečne konvertuj hodnotu na float, pričom nahradí čiarku bodkou"""
+    if pd.isna(value) or value == '':
+        return 0.0
+    try:
+        # Konvertuj na string a nahraď čiarku bodkou
+        str_value = str(value).strip().replace(',', '.')
+        return float(str_value)
+    except (ValueError, TypeError):
+        return 0.0
+
 def get_slovak_datetime():
     """Vráti aktuálny dátum a čas vo formáte pre Slovensko"""
     return datetime.now().strftime("%d.%m.%Y %H:%M:%S")
@@ -700,11 +711,11 @@ def main():
                             trans_type = row['GPM_HIER'] if pd.notna(row['GPM_HIER']) and row['GPM_HIER'] != '' else None
                             channel = row['TXT_CHANNEL'] if pd.notna(row['TXT_CHANNEL']) and row['TXT_CHANNEL'] != '' else None
                             
-                            # Nativny format z Kebooly je s bodkou
-                            rat_bl = float(row['RAT_BL']) if pd.notna(row['RAT_BL']) else 0
-                            rat_prod = float(row['RAT_PROD']) if pd.notna(row['RAT_PROD']) else 0
-                            rat_act = float(row['RAT_ACTIVITY']) if pd.notna(row['RAT_ACTIVITY']) else 0
-                            rat_chan = float(row['RAT_CHANNEL']) if pd.notna(row['RAT_CHANNEL']) else 0
+                            # Bezpečne parsuj čísla s potenciálnymi čiarkami
+                            rat_bl = parse_decimal_value(row['RAT_BL'])
+                            rat_prod = parse_decimal_value(row['RAT_PROD'])
+                            rat_act = parse_decimal_value(row['RAT_ACTIVITY'])
+                            rat_chan = parse_decimal_value(row['RAT_CHANNEL'])
                             
                             if bl and rat_bl > 0:
                                 st.session_state.selected_bls[bl] = rat_bl
@@ -760,7 +771,7 @@ def main():
             btn_next_placeholder = col2.empty()
         
         fte_row = fte_data[fte_data['CC'].astype(str) == str(st.session_state.cc)]
-        num_fte_total = float(fte_row['NUM_FTE'].values[0]) if not fte_row.empty else 0
+        num_fte_total = parse_decimal_value(fte_row['NUM_FTE'].values[0]) if not fte_row.empty else 0
         
         bl_tooltips = {}
         for _, bl_row_data in bl_order.iterrows():
@@ -880,7 +891,7 @@ def main():
         }
         
         fte_row = fte_data[fte_data['CC'].astype(str) == str(st.session_state.cc)]
-        num_fte_total = float(fte_row['NUM_FTE'].values[0]) if not fte_row.empty else 0
+        num_fte_total = parse_decimal_value(fte_row['NUM_FTE'].values[0]) if not fte_row.empty else 0
         
         current_status = st.session_state.current_status_snapshot
         use_current_version = get_status_hierarchy(current_status) >= get_status_hierarchy('Step2')
@@ -977,7 +988,7 @@ def main():
                                 (saved_forms['DOM_ABC_PROD'] == masked_product)
                             ]
                             if not current_row.empty:
-                                default_value = float(current_row.iloc[0]['RAT_PROD']) if pd.notna(current_row.iloc[0]['RAT_PROD']) else 0.0
+                                default_value = parse_decimal_value(current_row.iloc[0]['RAT_PROD'])
                         else:
                             if not prev_forms.empty:
                                 prev_row = prev_forms[
@@ -985,7 +996,7 @@ def main():
                                     (prev_forms['DOM_ABC_PROD'] == masked_product)
                                 ]
                                 if not prev_row.empty:
-                                    default_value = float(prev_row.iloc[0]['RAT_PROD']) if pd.notna(prev_row.iloc[0]['RAT_PROD']) else 0.0
+                                    default_value = parse_decimal_value(prev_row.iloc[0]['RAT_PROD'])
                         
                         allocation = st.number_input(
                             f"",
@@ -1073,7 +1084,7 @@ def main():
         }
         
         fte_row = fte_data[fte_data['CC'].astype(str) == str(st.session_state.cc)]
-        num_fte_total = float(fte_row['NUM_FTE'].values[0]) if not fte_row.empty else 0
+        num_fte_total = parse_decimal_value(fte_row['NUM_FTE'].values[0]) if not fte_row.empty else 0
         
         current_status = st.session_state.current_status_snapshot
         use_current_version = get_status_hierarchy(current_status) >= get_status_hierarchy('Step3')
@@ -1162,7 +1173,7 @@ def main():
                                 desc = desc[6:]
                             
                             try:
-                                fc_value = float(str(row['FC']).replace(',', '.'))
+                                fc_value = parse_decimal_value(row['FC'])
                                 if fc_value >= 1000:
                                     fc_formatted = f"{int(fc_value):,}".replace(',', ' ')
                                 else:
@@ -1246,7 +1257,7 @@ def main():
                                 (saved_forms['GPM_HIER'] == trans_type)
                             ]
                             if not current_row.empty:
-                                default_value = float(current_row.iloc[0]['RAT_ACTIVITY']) if pd.notna(current_row.iloc[0]['RAT_ACTIVITY']) else 0.0
+                                default_value = parse_decimal_value(current_row.iloc[0]['RAT_ACTIVITY'])
                         else:
                             if not prev_forms.empty:
                                 prev_row = prev_forms[
@@ -1255,7 +1266,7 @@ def main():
                                     (prev_forms['GPM_HIER'] == trans_type)
                                 ]
                                 if not prev_row.empty:
-                                    default_value = float(prev_row.iloc[0]['RAT_ACTIVITY']) if pd.notna(prev_row.iloc[0]['RAT_ACTIVITY']) else 0.0
+                                    default_value = parse_decimal_value(prev_row.iloc[0]['RAT_ACTIVITY'])
                         
                         allocation = st.number_input(
                             f"",
@@ -1350,13 +1361,13 @@ def main():
                     product = remove_product_mask(row['DOM_ABC_PROD'], prod_mask_order)
                     trans_type = row['GPM_HIER']
                     channel = remove_channel_mask(row['TXT_CHANNEL'], channel_mask_order) if pd.notna(row['TXT_CHANNEL']) and str(row['TXT_CHANNEL']).strip() else ''
-                    channel_alloc = float(str(row['RAT_CHANNEL']).replace(',', '.')) if pd.notna(row['RAT_CHANNEL']) else 0.0
+channel_alloc = parse_decimal_value(row['RAT_CHANNEL'])
                     
                     if channel and channel_alloc > 0 and (bl, product, trans_type) in st.session_state.selected_trans_types:
                         st.session_state.selected_channels[(bl, product, trans_type, channel)] = channel_alloc
         
         fte_row = fte_data[fte_data['CC'].astype(str) == str(st.session_state.cc)]
-        num_fte_total = float(fte_row['NUM_FTE'].values[0]) if not fte_row.empty else 0
+        num_fte_total = parse_decimal_value(fte_row['NUM_FTE'].values[0]) if not fte_row.empty else 0
         
         current_status = st.session_state.current_status_snapshot
         use_current_version = get_status_hierarchy(current_status) >= get_status_hierarchy('Submitted')
@@ -1491,7 +1502,7 @@ def main():
                                 (saved_forms['TXT_CHANNEL'] == masked_channel)
                             ]
                             if not current_forms.empty:
-                                default_value = float(current_forms.iloc[0]['RAT_CHANNEL']) if pd.notna(current_forms.iloc[0]['RAT_CHANNEL']) else 0.0
+                                default_value = parse_decimal_value(current_forms.iloc[0]['RAT_CHANNEL'])
                         else:
                             if not prev_forms.empty:
                                 prev_row = prev_forms[
@@ -1501,7 +1512,7 @@ def main():
                                     (prev_forms['TXT_CHANNEL'] == masked_channel)
                                 ]
                                 if not prev_row.empty:
-                                    default_value = float(prev_row.iloc[0]['RAT_CHANNEL']) if pd.notna(prev_row.iloc[0]['RAT_CHANNEL']) else 0.0
+                                    default_value = parse_decimal_value(prev_row.iloc[0]['RAT_CHANNEL'])
                         
                         allocation = st.number_input(
                             f"",
@@ -1592,7 +1603,7 @@ def main():
             btn_done_placeholder = col2.empty()
         
         fte_row = fte_data[fte_data['CC'].astype(str) == str(st.session_state.cc)]
-        num_fte_total = float(fte_row['NUM_FTE'].values[0]) if not fte_row.empty else 0
+        num_fte_total = parse_decimal_value(fte_row['NUM_FTE'].values[0]) if not fte_row.empty else 0
         
         existing = get_existing_forms_by_status_bs(st.session_state.cc, act_version, saved_bs)
         if existing.empty and prev_version:
@@ -1601,7 +1612,7 @@ def main():
         if not existing.empty:
             for _, row in existing.iterrows():
                 bl = row['BL'] if pd.notna(row['BL']) and row['BL'] != '' else None
-                rat_total = float(str(row['RAT_TOTAL']).replace(',', '.')) if pd.notna(row['RAT_TOTAL']) else 0
+                rat_total = parse_decimal_value(row['RAT_TOTAL'])
                 if bl and rat_total > 0:
                     st.session_state.selected_bls[bl] = rat_total
         
@@ -1690,7 +1701,7 @@ def main():
         
         results = []
         fte_row = fte_data[fte_data['CC'].astype(str) == str(st.session_state.cc)]
-        num_fte_total = float(fte_row['NUM_FTE'].values[0]) if not fte_row.empty else 0
+        num_fte_total = parse_decimal_value(fte_row['NUM_FTE'].values[0]) if not fte_row.empty else 0
         
         for bl, rat_total in st.session_state.selected_bls.items():
             weighted_fte = (rat_total / 100) * num_fte_total
