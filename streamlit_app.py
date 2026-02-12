@@ -1361,7 +1361,7 @@ def main():
                     product = remove_product_mask(row['DOM_ABC_PROD'], prod_mask_order)
                     trans_type = row['GPM_HIER']
                     channel = remove_channel_mask(row['TXT_CHANNEL'], channel_mask_order) if pd.notna(row['TXT_CHANNEL']) and str(row['TXT_CHANNEL']).strip() else ''
-channel_alloc = parse_decimal_value(row['RAT_CHANNEL'])
+                    channel_alloc = parse_decimal_value(row['RAT_CHANNEL'])
                     
                     if channel and channel_alloc > 0 and (bl, product, trans_type) in st.session_state.selected_trans_types:
                         st.session_state.selected_channels[(bl, product, trans_type, channel)] = channel_alloc
