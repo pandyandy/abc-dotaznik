@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import re
 import os
 from collections import defaultdict
@@ -209,21 +210,26 @@ def parse_decimal_value(value):
         return 0.0
 
 def convert_numeric_columns(df):
-    """Konvertuj konkrétne numerické stĺpce - nahradí čiarky bodkami"""
+    """Konvertuj všetky stĺpce s čiarkami na float - len bezpečne bez zmeny textových stĺpcov"""
     df_converted = df.copy()
-    
-    # Zoznam stĺpcov, ktoré majú byť numerické
-    numeric_column_patterns = ['RAT_', 'NUM_', 'FC', 'TRANSACTIONS', 'VERSION_ID', 'COUNT']
     
     for col in df_converted.columns:
         try:
-            # Kontroluj či stĺpec obsahuje niektorý z vzorov numerických stĺpcov
-            is_numeric_col = any(pattern in col.upper() for pattern in numeric_column_patterns)
-            
-            if is_numeric_col and df_converted[col].dtype == 'object':
-                # Konvertuj stringy s čiarkami na float
-                converted_series = df_converted[col].apply(lambda x: parse_decimal_value(x) if pd.notna(x) else None)
-                df_converted[col] = converted_series
+            # Skontroluj, či stĺpec obsahuje čiarky (indikátor desatinného oddeľovača)
+            if df_converted[col].dtype == 'object':
+                # Skus konvertovať všetky hodnoty
+                test_converted = df_converted[col].astype(str).str.contains(',', na=False)
+                
+                # Ak je tam nejaká čiarka, skús konvertovať celý stĺpec
+                if test_converted.any():
+                    try:
+                        converted_series = df_converted[col].apply(lambda x: parse_decimal_value(x) if pd.notna(x) else np.nan)
+                        # Skontroluj či konverzia bola úspešná (väčšina hodnôt sú čísla)
+                        non_nan_count = converted_series.notna().sum()
+                        if non_nan_count > 0:
+                            df_converted[col] = converted_series
+                    except Exception:
+                        pass
         except Exception:
             pass
     
@@ -740,6 +746,9 @@ def main():
                             rat_prod = parse_decimal_value(row['RAT_PROD'])
                             rat_act = parse_decimal_value(row['RAT_ACTIVITY'])
                             rat_chan = parse_decimal_value(row['RAT_CHANNEL'])
+                            
+                            # Debug: skontroluj či sú hodnoty načítané
+                            st.write(f"DEBUG: BL={bl}, RAT_BL={rat_bl}, type={type(rat_bl)}")
                             
                             if bl and rat_bl > 0:
                                 st.session_state.selected_bls[bl] = rat_bl
