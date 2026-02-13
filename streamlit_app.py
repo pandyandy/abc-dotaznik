@@ -399,6 +399,13 @@ def get_existing_from_prev_version(CC, prev_version, saved_forms):
     
     result = saved_forms[mask] if not saved_forms[mask].empty else pd.DataFrame()
     
+    # DEBUG: Zobraz proces filtrovania
+    print(f"DEBUG get_existing_from_prev_version: CC={CC}, prev_version={prev_version}")
+    print(f"  Unique CCs in saved_forms: {saved_forms['CC'].unique()[:10]}")  # prvých 10
+    print(f"  Unique VERSIONs in saved_forms: {saved_forms['VERSION'].unique()}")
+    print(f"  Počet riadkov po filtri: {len(result)}")
+    print(f"  Columns: {result.columns.tolist()}")
+    
     # Nativny format z Kebooly: čísla sú s bodkami (alebo numeric), žiadna konverzia nie je potrebná
     for col in ['RAT_BL', 'RAT_PROD', 'RAT_ACTIVITY', 'RAT_CHANNEL', 'RAT_TOTAL']:
         if col in result.columns and result[col].dtype == 'object':
@@ -636,6 +643,9 @@ def main():
     if max_id > 1:
         prev_version = version.loc[version['VERSION_ID'] == max_id - 1, 'VERSION'].iloc[0]
     
+    # DEBUG: Zobraz verzie
+    st.warning(f"🔍 **DEBUG - Version Info:** Max ID: {max_id} | Act Version: **{act_version}** | Prev Version: **{prev_version}**")
+    
     # Filtruj trans_data na aktuálnu VERSION
     trans_data = trans_data[trans_data['VERSION'].astype(str).str.strip() == str(act_version).strip()]
     
@@ -693,7 +703,13 @@ def main():
                     else:
                         existing = get_existing_forms_by_status(CC, act_version, saved_forms, status)
                     
+                    # DEBUG: Zobraz existujúce dáta
+                    st.info(f"🔍 **DEBUG - Data Loading:** CC={CC} | Status='{status}' | Found {len(existing)} rows")
                     if not existing.empty:
+                        st.info("**Loaded data:**")
+                        st.dataframe(existing, use_container_width=True)
+                    else:
+                        st.warning("⚠️ No data found from previous version or current status")
                         for _, row in existing.iterrows():
                             bl = row['BL'] if pd.notna(row['BL']) and row['BL'] != '' else None
                             product = row['DOM_ABC_PROD'] if pd.notna(row['DOM_ABC_PROD']) and row['DOM_ABC_PROD'] != '' else None
