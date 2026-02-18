@@ -1,77 +1,78 @@
 import streamlit as st
 import pandas as pd
 import re
-import os
 from collections import defaultdict
 from datetime import datetime
-#from keboola_streamlit import KeboolaStreamlit
-from kbcstorage.client import Client
+import snowflake.connector
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.backends import default_backend
+from snowflake.connector.pandas_tools import write_pandas
 
 st.set_page_config(layout="wide")
 
-# ==================== KEBOOLA CONFIGURATION ====================
-KEBOOLA_URL = os.environ.get("KEBOOLA_URL") or st.secrets.get("KEBOOLA_URL")
-STORAGE_TOKEN = os.environ.get("STORAGE_API_TOKEN") or st.secrets.get("STORAGE_API_TOKEN")
-
-# Keboola Table IDs (mapping)
+# ==================== SNOWFLAKE CONFIGURATION ====================
+# Snowflake table names (available in the workspace schema)
 TABLES = {
-    'trans_data': 'out.c-ABC.ABC_FORM_VALIDATION_DATA',
-    'fte_data': 'out.c-ABC.ABC_FORM_FTE',
-    'cc_user': 'out.c-ABC.ABC_FORM_CC_USER',
-    'saved_forms': 'out.c-ABC.ABC_FORM_ABC',
-    'saved_bs': 'out.c-ABC.ABC_FORM_BS',
-    'bl_order': 'out.c-ABC.ABC_FORM_BL_MAP',
-    'gpm_order': 'out.c-ABC.ABC_FORM_GPM_MAP',
-    'prod_mask_order': 'out.c-ABC.ABC_FORM_PROD_MAP',
-    'channel_mask_order': 'out.c-ABC.ABC_FORM_CHANNEL_MAP',
-    'version': 'out.c-ABC.ABC_VERSION',
-    'cc_desc': 'out.c-ABC.ABC_FORM_CC_DESC',
-    'trx_count': 'out.c-ABC.ABC_CALC_TRANSACTIONS'
+    'trans_data': 'ABC_FORM_VALIDATION_DATA',
+    'fte_data': 'ABC_FORM_FTE',
+    'cc_user': 'ABC_FORM_CC_USER',
+    'saved_forms': 'ABC_FORM_ABC',
+    'saved_bs': 'ABC_FORM_BS',
+    'bl_order': 'ABC_FORM_BL_MAP',
+    'gpm_order': 'ABC_FORM_GPM_MAP',
+    'prod_mask_order': 'ABC_FORM_PROD_MAP',
+    'channel_mask_order': 'ABC_FORM_CHANNEL_MAP',
+    'version': 'ABC_VERSION',
+    'cc_desc': 'ABC_FORM_CC_DESC',
+    'trx_count': 'ABC_CALC_TRANSACTIONS'
 }
 
-# CSV Settings - UTF-8 s čiarkou a bodkočiarkou
-CSV_ENCODING = 'utf-8'
-CSV_SEPARATOR = ';'
-CSV_DECIMAL = ','
-
-# ==================== KEBOOLA CLIENT INITIALIZATION ====================
+# ==================== SNOWFLAKE CONNECTION ====================
 @st.cache_resource
-def init_keboola_client():
-    """Inicializácia a cachovanie Keboola Storage klienta"""
+def init_snowflake_connection():
+    """Inicializácia a cachovanie Snowflake pripojenia"""
     try:
-        client = Client(KEBOOLA_URL, STORAGE_TOKEN)
-        return client
+        private_key_pem = st.secrets["SNOWFLAKE_PRIVATE_KEY"]
+        p_key = serialization.load_pem_private_key(
+            private_key_pem.encode(),
+            password=None,
+            backend=default_backend()
+        )
+        pkb = p_key.private_bytes(
+            encoding=serialization.Encoding.DER,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()
+        )
+
+        conn = snowflake.connector.connect(
+            user=st.secrets["SNOWFLAKE_USER"],
+            account=st.secrets["SNOWFLAKE_ACCOUNT"],
+            private_key=pkb,
+            warehouse=st.secrets["SNOWFLAKE_WAREHOUSE"],
+            database=st.secrets["SNOWFLAKE_DATABASE"],
+            schema=st.secrets["SNOWFLAKE_SCHEMA"],
+        )
+        return conn
     except Exception as e:
-        st.error(f"❌ Chyba pri inicializácii Keboola klienta: {e}")
+        st.error(f"❌ Chyba pri pripojení k Snowflake: {e}")
         return None
 
-client = init_keboola_client()
+conn = init_snowflake_connection()
 
-# ==================== KEBOOLA DATA LOADING ====================
-def load_table_from_keboola(table_id):
-    """Načítanie tabuľky z Keboola Storage"""
-    if client is None:
-        st.error("❌ Keboola klient nie je inicializovaný")
+# ==================== SNOWFLAKE DATA LOADING ====================
+def load_table_from_snowflake(table_name):
+    """Načítanie tabuľky zo Snowflake"""
+    if conn is None:
+        st.error("❌ Snowflake pripojenie nie je dostupné")
         return None
-    
+
     try:
-        # Export table to CSV
-        client.tables.export_to_file(table_id, '.')
-        
-        # The file is saved with the table name
-        table_name = table_id.split('.')[-1]
-        file_path = f"{table_name}"
-        
-        # Read the CSV file - nechajme na nativne spravanie (Keboola má svoje nativne nastavenie)
-        df = pd.read_csv(file_path)
-        
-        # Clean up the file
-        if os.path.exists(file_path):
-            os.remove(file_path)
-        
+        cursor = conn.cursor()
+        cursor.execute(f'SELECT * FROM {table_name}')
+        df = cursor.fetch_pandas_all()
         return df
     except Exception as e:
-        st.error(f"Error loading data: {e}")
+        st.error(f"Error loading data from {table_name}: {e}")
         return None
       
 @st.cache_data(ttl=300)
@@ -79,34 +80,34 @@ def load_data():
     """Načítanie všetkých potrebných dát s optimalizáciou verzií"""
     try:
         # trans_data - filtruj iba aktuálnu verziu
-        trans_data = load_table_from_keboola(TABLES['trans_data'])
+        trans_data = load_table_from_snowflake(TABLES['trans_data'])
         if trans_data is not None and 'version' in trans_data.columns:
             trans_data = trans_data[trans_data['version'] == 'act'].copy()
         
-        fte_data = load_table_from_keboola(TABLES['fte_data'])
-        cc_user = load_table_from_keboola(TABLES['cc_user'])
+        fte_data = load_table_from_snowflake(TABLES['fte_data'])
+        cc_user = load_table_from_snowflake(TABLES['cc_user'])
         
         # saved_forms - filtruj verzie act a prev
-        saved_forms = load_table_from_keboola(TABLES['saved_forms'])
+        saved_forms = load_table_from_snowflake(TABLES['saved_forms'])
         if saved_forms is not None and 'version' in saved_forms.columns:
             saved_forms = saved_forms[saved_forms['version'].isin(['act', 'prev'])].copy()
         
         # saved_bs - filtruj verzie act a prev
-        saved_bs = load_table_from_keboola(TABLES['saved_bs'])
+        saved_bs = load_table_from_snowflake(TABLES['saved_bs'])
         if saved_bs is not None and 'version' in saved_bs.columns:
             saved_bs = saved_bs[saved_bs['version'].isin(['act', 'prev'])].copy()
         else:
             saved_bs = pd.DataFrame()
         
-        bl_order = load_table_from_keboola(TABLES['bl_order'])
-        gpm_order = load_table_from_keboola(TABLES['gpm_order'])
-        prod_mask_order = load_table_from_keboola(TABLES['prod_mask_order'])
-        channel_mask_order = load_table_from_keboola(TABLES['channel_mask_order'])
-        version = load_table_from_keboola(TABLES['version'])
-        cc_desc = load_table_from_keboola(TABLES['cc_desc'])
+        bl_order = load_table_from_snowflake(TABLES['bl_order'])
+        gpm_order = load_table_from_snowflake(TABLES['gpm_order'])
+        prod_mask_order = load_table_from_snowflake(TABLES['prod_mask_order'])
+        channel_mask_order = load_table_from_snowflake(TABLES['channel_mask_order'])
+        version = load_table_from_snowflake(TABLES['version'])
+        cc_desc = load_table_from_snowflake(TABLES['cc_desc'])
         
         # trx_count - filtruj iba aktuálnu verziu
-        trx_count = load_table_from_keboola(TABLES['trx_count'])
+        trx_count = load_table_from_snowflake(TABLES['trx_count'])
         if trx_count is not None and 'version' in trx_count.columns:
             trx_count = trx_count[trx_count['version'] == 'act'].copy()
         
@@ -119,15 +120,15 @@ def load_data():
 def load_dynamic_data():
     """Načítanie dynamických dát bez cache s filtráciou verzií"""
     try:
-        cc_user = load_table_from_keboola(TABLES['cc_user'])
+        cc_user = load_table_from_snowflake(TABLES['cc_user'])
         
         # saved_forms - filtruj verzie act a prev
-        saved_forms = load_table_from_keboola(TABLES['saved_forms'])
+        saved_forms = load_table_from_snowflake(TABLES['saved_forms'])
         if saved_forms is not None and 'version' in saved_forms.columns:
             saved_forms = saved_forms[saved_forms['version'].isin(['act', 'prev'])].copy()
         
         # saved_bs - filtruj verzie act a prev
-        saved_bs = load_table_from_keboola(TABLES['saved_bs'])
+        saved_bs = load_table_from_snowflake(TABLES['saved_bs'])
         if saved_bs is not None and 'version' in saved_bs.columns:
             saved_bs = saved_bs[saved_bs['version'].isin(['act', 'prev'])].copy()
         else:
@@ -139,48 +140,35 @@ def load_dynamic_data():
         st.error(f"❌ Chyba pri načítaní dynamických dát: {e}")
         return None, None, None
 
-# ==================== KEBOOLA DATA SAVING ====================
-def save_data_to_keboola(df, table_id, is_incremental=True):
-    """Uloženie dát do Keboola Storage - konvertuje čiarky na bodky"""
-    if client is None:
-        st.error("❌ Keboola klient nie je inicializovaný")
+# ==================== SNOWFLAKE DATA SAVING ====================
+def save_data_to_snowflake(df, table_name, is_incremental=True):
+    """Uloženie dát do Snowflake - konvertuje čiarky na bodky"""
+    if conn is None:
+        st.error("❌ Snowflake pripojenie nie je dostupné")
         return False
-    
+
     try:
-        temp_file = f"temp_upload_{table_id.split('.')[-1]}.csv"
-        
-        # Vytvor kopiu pre zápis
         df_to_save = df.copy()
-        
+
         # Konvertuj čiarky na bodky v stĺpcoch s číslami
-        # (používateľ videl čiarku, ale teraz konvertujeme na bodku pre Keboolu)
         numeric_columns = ['RAT_BL', 'RAT_PROD', 'RAT_ACTIVITY', 'RAT_CHANNEL', 'RAT_TOTAL']
         for col in numeric_columns:
             if col in df_to_save.columns:
-                # Stringy s čiarkami konvertuj na bodky
                 df_to_save[col] = df_to_save[col].astype(str).str.replace(',', '.')
-        
-        # Ulož do CSV - stringy sú už prekonvertované na bodky
-        # Nechajme na nativne spravanie (Keboola má svoje nativne nastavenie)
-        df_to_save.to_csv(
-            temp_file
-        )
-        
-        # Nahraj do Keboola Storage (append mode)
-        client.tables.load(
-            table_id=table_id,
-            file_path=temp_file,
-            is_incremental=is_incremental
-        )
-        
-        # Vyčisti dočasný súbor
-        if os.path.exists(temp_file):
-            os.remove(temp_file)
-        
+
+        cursor = conn.cursor()
+
+        if not is_incremental:
+            cursor.execute(f'DELETE FROM {table_name}')
+
+        if not df_to_save.empty:
+            df_to_save = df_to_save.reset_index(drop=True)
+            write_pandas(conn, df_to_save, table_name)
+
         return True
-    
+
     except Exception as e:
-        st.error(f"❌ Chyba pri ukladaní dát do {table_id}: {e}")
+        st.error(f"❌ Chyba pri ukladaní dát do {table_name}: {e}")
         return False
 
 # ==================== HELPER FUNCTIONS ====================
@@ -430,67 +418,65 @@ def get_current_status(CC, VERSION, saved_forms):
     return ''
 
 def save_form_step(USER_ID, CC, VERSION, form_data, saved_forms, bl_order, status, is_first_in_step=False):
-    """Uloženie jednotlivého kroku formulára do Kebooly"""
-    if saved_forms is None or saved_forms.empty:
-        df_saved = pd.DataFrame()
-    else:
-        df_saved = saved_forms.copy()
-    
-    # Vymaž staré riadky
-    if is_first_in_step:
-        mask_old = (
-            (df_saved['CC'].astype(str).str.strip() == str(CC).strip()) &
-            (df_saved['VERSION'].astype(str).str.strip() == str(VERSION))
+    """Uloženie jednotlivého kroku formulára do Snowflake (targeted delete + insert)"""
+    if conn is None:
+        st.error("❌ Snowflake pripojenie nie je dostupné")
+        return
+
+    try:
+        cursor = conn.cursor()
+
+        # Targeted delete: only rows for this CC + VERSION (not the whole table)
+        if is_first_in_step:
+            cursor.execute(
+                f'DELETE FROM {TABLES["saved_forms"]} WHERE TRIM("CC") = %s AND TRIM("VERSION") = %s',
+                (str(CC).strip(), str(VERSION).strip())
+            )
+
+        def format_decimal(val):
+            """Formátuj číslo pre Snowflake (bodka ako desatinný oddeľovač)"""
+            if val is None or val == 0 or val == '':
+                return '0'
+            return str(float(val))
+
+        bl = form_data.get('BL', '')
+        product = form_data.get('DOM_ABC_PROD', '')
+        trans_type = form_data.get('GPM_HIER', '')
+        channel = form_data.get('TXT_CHANNEL', '')
+
+        bl_match = bl_order[bl_order['BL'] == bl] if bl else pd.DataFrame()
+        txt_bus_line = bl_match.iloc[0]['TXT_BUS_LINE'] if not bl_match.empty else ''
+        subsegment = bl_match.iloc[0].get('SUBSEGMENT', '') if not bl_match.empty else ''
+
+        row_data = {
+            'USER_ID': str(USER_ID).strip(),
+            'CC': str(CC).strip(),
+            'BL': bl,
+            'TXT_BUS_LINE': txt_bus_line,
+            'RAT_BL': format_decimal(form_data.get('RAT_BL', 0)),
+            'DOM_ABC_PROD': product,
+            'RAT_PROD': format_decimal(form_data.get('RAT_PROD', 0)),
+            'GPM_HIER': trans_type,
+            'RAT_ACTIVITY': format_decimal(form_data.get('RAT_ACTIVITY', 0)),
+            'TXT_CHANNEL': channel,
+            'RAT_CHANNEL': format_decimal(form_data.get('RAT_CHANNEL', 0)),
+            'SUBSEGMENT': subsegment,
+            'RAT_TOTAL': format_decimal(form_data.get('RAT_TOTAL', 0)),
+            'VERSION': str(VERSION),
+            'STATUS': status,
+            'FILL_DATE': get_slovak_datetime()
+        }
+
+        cols = list(row_data.keys())
+        col_names = ', '.join(f'"{c}"' for c in cols)
+        placeholders = ', '.join(['%s'] * len(cols))
+        cursor.execute(
+            f'INSERT INTO {TABLES["saved_forms"]} ({col_names}) VALUES ({placeholders})',
+            tuple(row_data.values())
         )
-        df_saved = df_saved[~mask_old]
-    else:
-        mask_old = (
-            (df_saved['CC'].astype(str).str.strip() == str(CC).strip()) &
-            (df_saved['VERSION'].astype(str).str.strip() == str(VERSION)) &
-            (df_saved['BL'] == form_data.get('BL', '')) &
-            (df_saved['DOM_ABC_PROD'] == form_data.get('DOM_ABC_PROD', '')) &
-            (df_saved['GPM_HIER'] == form_data.get('GPM_HIER', '')) &
-            (df_saved['TXT_CHANNEL'] == form_data.get('TXT_CHANNEL', ''))
-        )
-        df_saved = df_saved[~mask_old]
-    
-    def convert_to_comma_decimal(val):
-        """Konvertuj na čiarku pre UI formulára (používateľ vidí čiarku)"""
-        if val is None or val == 0 or val == '':
-            return '0'
-        # val je Python float s bodkou, konvertuj na string s čiarkou pre UI
-        return str(float(val)).replace('.', ',')
-    
-    bl = form_data.get('BL', '')
-    product = form_data.get('DOM_ABC_PROD', '')
-    trans_type = form_data.get('GPM_HIER', '')
-    channel = form_data.get('TXT_CHANNEL', '')
-    
-    bl_match = bl_order[bl_order['BL'] == bl] if bl else pd.DataFrame()
-    txt_bus_line = bl_match.iloc[0]['TXT_BUS_LINE'] if not bl_match.empty else ''
-    subsegment = bl_match.iloc[0].get('SUBSEGMENT', '') if not bl_match.empty else ''
-    
-    new_row = pd.DataFrame([{
-        'USER_ID': str(USER_ID).strip(),
-        'CC': str(CC).strip(),
-        'BL': bl,
-        'TXT_BUS_LINE': txt_bus_line,
-        'RAT_BL': convert_to_comma_decimal(form_data.get('RAT_BL', 0)),
-        'DOM_ABC_PROD': product,
-        'RAT_PROD': convert_to_comma_decimal(form_data.get('RAT_PROD', 0)),
-        'GPM_HIER': trans_type,
-        'RAT_ACTIVITY': convert_to_comma_decimal(form_data.get('RAT_ACTIVITY', 0)),
-        'TXT_CHANNEL': channel,
-        'RAT_CHANNEL': convert_to_comma_decimal(form_data.get('RAT_CHANNEL', 0)),
-        'SUBSEGMENT': subsegment,
-        'RAT_TOTAL': convert_to_comma_decimal(form_data.get('RAT_TOTAL', 0)),
-        'VERSION': str(VERSION),
-        'STATUS': status,
-        'FILL_DATE': get_slovak_datetime()
-    }])
-    
-    df_saved = pd.concat([df_saved, new_row], ignore_index=True)
-    save_data_to_keboola(df_saved, TABLES['saved_forms'], is_incremental=False)
+
+    except Exception as e:
+        st.error(f"❌ Chyba pri ukladaní formulára: {e}")
 
 def get_form_status_bs(CC, VERSION, saved_bs):
     """Získanie statusu BS formulára"""
@@ -539,56 +525,62 @@ def get_existing_bs_from_prev_version(CC, prev_version, saved_bs):
     return result
 
 def save_form_bs(USER_ID, CC, VERSION, form_data, saved_bs, bl_order):
-    """Uloženie BS formulára do Kebooly"""
-    if saved_bs is None or saved_bs.empty:
-        df_saved = pd.DataFrame()
-    else:
-        df_saved = saved_bs.copy()
-    
-    # Vymaž staré riadky
-    mask_old = (
-        (df_saved['COST_CENTER'].astype(str).str.strip() == str(CC).strip()) &
-        (df_saved['VERSION'].astype(str).str.strip() == str(VERSION))
-    )
-    df_saved = df_saved[~mask_old]
-    
-    def convert_to_comma_decimal(val):
-        """Konvertuj na čiarku pre UI formulára (používateľ vidí čiarku)"""
-        if val is None or val == 0 or val == '':
-            return '0'
-        # val je Python float s bodkou, konvertuj na string s čiarkou pre UI
-        return str(float(val)).replace('.', ',')
-    
-    rows_to_insert = []
-    for bl, rat_total in form_data.items():
-        bl_match = bl_order[bl_order['BL'] == bl] if bl else pd.DataFrame()
-        txt_bus_line = bl_match.iloc[0]['TXT_BUS_LINE'] if not bl_match.empty else ''
-        subsegment = bl_match.iloc[0].get('SUBSEGMENT', '') if not bl_match.empty else ''
-        
-        new_row = pd.DataFrame([{
-            'USER_ID': str(USER_ID).strip(),
-            'BL': bl,
-            'TXT_BUS_LINE': txt_bus_line,
-            'SUBSEGMENT': subsegment,
-            'COST_CENTER': str(CC).strip(),
-            'RAT_TOTAL': convert_to_comma_decimal(rat_total),
-            'VERSION': str(VERSION),
-            'STATUS': 'Submitted',
-            'FILL_DATE': get_slovak_datetime()
-        }])
-        
-        rows_to_insert.append(new_row)
-    
-    if rows_to_insert:
-        df_to_insert = pd.concat(rows_to_insert, ignore_index=True)
-        df_saved = pd.concat([df_saved, df_to_insert], ignore_index=True)
-    
-    save_data_to_keboola(df_saved, TABLES['saved_bs'], is_incremental=False)
+    """Uloženie BS formulára do Snowflake (targeted delete + insert)"""
+    if conn is None:
+        st.error("❌ Snowflake pripojenie nie je dostupné")
+        return
+
+    try:
+        cursor = conn.cursor()
+
+        # Targeted delete: only rows for this COST_CENTER + VERSION (not the whole table)
+        cursor.execute(
+            f'DELETE FROM {TABLES["saved_bs"]} WHERE TRIM("COST_CENTER") = %s AND TRIM("VERSION") = %s',
+            (str(CC).strip(), str(VERSION).strip())
+        )
+
+        def format_decimal(val):
+            """Formátuj číslo pre Snowflake (bodka ako desatinný oddeľovač)"""
+            if val is None or val == 0 or val == '':
+                return '0'
+            return str(float(val))
+
+        rows_to_insert = []
+        for bl, rat_total in form_data.items():
+            bl_match = bl_order[bl_order['BL'] == bl] if bl else pd.DataFrame()
+            txt_bus_line = bl_match.iloc[0]['TXT_BUS_LINE'] if not bl_match.empty else ''
+            subsegment = bl_match.iloc[0].get('SUBSEGMENT', '') if not bl_match.empty else ''
+
+            rows_to_insert.append((
+                str(USER_ID).strip(),
+                bl,
+                txt_bus_line,
+                subsegment,
+                str(CC).strip(),
+                format_decimal(rat_total),
+                str(VERSION),
+                'Submitted',
+                get_slovak_datetime()
+            ))
+
+        if rows_to_insert:
+            col_names = ', '.join(f'"{c}"' for c in [
+                'USER_ID', 'BL', 'TXT_BUS_LINE', 'SUBSEGMENT',
+                'COST_CENTER', 'RAT_TOTAL', 'VERSION', 'STATUS', 'FILL_DATE'
+            ])
+            placeholders = ', '.join(['%s'] * 9)
+            cursor.executemany(
+                f'INSERT INTO {TABLES["saved_bs"]} ({col_names}) VALUES ({placeholders})',
+                rows_to_insert
+            )
+
+    except Exception as e:
+        st.error(f"❌ Chyba pri ukladaní BS formulára: {e}")
 
 def main():
-    # Inicializuj Keboola klienta
-    if client is None:
-        st.error("❌ Nie je možné sa pripojiť ku Keboole. Skontrolujte secrets.")
+    # Skontroluj Snowflake pripojenie
+    if conn is None:
+        st.error("❌ Nie je možné sa pripojiť k Snowflake. Skontrolujte secrets.")
         st.stop()
     
     # Načítaj dáta
@@ -637,6 +629,7 @@ def main():
         st.session_state.current_status_snapshot = None
 
     # Verzia
+    version['VERSION_ID'] = pd.to_numeric(version['VERSION_ID'], errors='coerce')
     max_id = version['VERSION_ID'].max()
     act_version = version.loc[version['VERSION_ID'] == max_id, 'VERSION'].iloc[0]
     prev_version = None
