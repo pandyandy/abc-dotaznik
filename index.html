@@ -1,0 +1,1415 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ABC Dotazník</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --blue:        #2874e9;
+    --blue-dark:   #1a5bbf;
+    --blue-light:  #EBF2FD;
+    --blue-mid:    #C0D8F8;
+    --text:        #111827;
+    --text-muted:  #6B7280;
+    --border:      #E5E7EB;
+    --bg:          #F9FAFB;
+    --white:       #FFFFFF;
+    --shadow-sm:   0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.05);
+    --shadow-md:   0 4px 12px rgba(0,0,0,.08), 0 2px 4px rgba(0,0,0,.05);
+    --radius:      12px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.5; }
+
+  /* ── Header ── */
+  .slsp-header {
+    background: var(--blue);
+    color: var(--white);
+    padding: 0 32px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    box-shadow: 0 1px 0 rgba(0,0,0,.12), 0 4px 12px rgba(40,116,233,.25);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .slsp-header img.logo { height: 32px; display: block; }
+  .slsp-header .divider { width: 1px; height: 24px; background: rgba(255,255,255,.3); }
+  .slsp-header .app-name { font-size: .9rem; font-weight: 500; opacity: .9; }
+
+  /* ── Layout ── */
+  #app { max-width: 900px; margin: 0 auto; padding: 32px 20px 80px; }
+
+  /* ── Card ── */
+  .card {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--border);
+    padding: 28px 32px;
+    margin-bottom: 16px;
+  }
+
+  /* ── Page title ── */
+  .page-title { margin-bottom: 24px; }
+  .page-title h1 { font-size: 1.35rem; font-weight: 700; color: var(--text); letter-spacing: -.01em; }
+  .page-title p { color: var(--text-muted); font-size: .88rem; margin-top: 4px; }
+
+  /* ── Step badge ── */
+  .step-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--blue-light); color: var(--blue-dark);
+    font-size: .75rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+    padding: 3px 10px; border-radius: 20px; margin-bottom: 10px;
+  }
+
+  h2 { font-size: 1.05rem; font-weight: 600; margin: 0 0 4px; color: var(--text); }
+  h3 { font-size: .95rem; font-weight: 600; margin: 20px 0 8px; color: var(--text); }
+  p.sub { color: var(--text-muted); margin-bottom: 20px; font-size: .875rem; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 20px; border-radius: 8px; border: none;
+    cursor: pointer; font-family: inherit; font-size: .9rem; font-weight: 500;
+    transition: all .15s; white-space: nowrap;
+  }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .btn-primary { background: var(--blue); color: var(--white); box-shadow: 0 1px 3px rgba(40,116,233,.4); }
+  .btn-primary:hover:not(:disabled) { background: var(--blue-dark); box-shadow: 0 2px 6px rgba(40,116,233,.45); }
+  .btn-secondary { background: var(--white); color: var(--text); border: 1.5px solid var(--border); }
+  .btn-secondary:hover:not(:disabled) { background: var(--bg); border-color: #d1d5db; }
+  .download-btn { background: var(--blue); color: var(--white); box-shadow: 0 1px 3px rgba(40,116,233,.4); }
+  .download-btn:hover { background: var(--blue-dark); }
+
+  .row-nav { display: flex; gap: 8px; margin-bottom: 24px; }
+
+  /* ── Save status toast ── */
+  #save-toast {
+    position: fixed; bottom: 24px; right: 24px; z-index: 200;
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 16px; border-radius: 8px; font-size: .875rem; font-weight: 500;
+    box-shadow: 0 4px 12px rgba(0,0,0,.15); transition: opacity .3s;
+    pointer-events: none;
+  }
+  #save-toast.saving { background: #1e293b; color: #fff; }
+  #save-toast.saved  { background: #166534; color: #fff; }
+  #save-toast.error  { background: #991B1B; color: #fff; pointer-events: auto; cursor: pointer; }
+
+  /* ── Allocation table ── */
+  .alloc-wrap { background: var(--white); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .alloc-header, .alloc-row { display: grid; grid-template-columns: 1fr 120px 90px; gap: 8px; align-items: center; padding: 10px 16px; }
+  .alloc-header { font-weight: 600; font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); background: var(--bg); border-bottom: 1px solid var(--border); }
+  .alloc-row { border-bottom: 1px solid #F3F4F6; transition: background .1s; }
+  .alloc-row:last-child { border-bottom: none; }
+  .alloc-row:hover { background: var(--blue-light); }
+
+  .alloc-row input[type=number] {
+    width: 100%; padding: 6px 10px; border: 1.5px solid var(--border);
+    border-radius: 7px; font-family: inherit; font-size: .9rem; background: var(--white);
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .alloc-row input[type=number]:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-mid); }
+  .alloc-row .fte-cell { font-size: .83rem; color: var(--text-muted); text-align: right; font-variant-numeric: tabular-nums; }
+  .alloc-row .name-cell { display: flex; align-items: center; gap: 8px; font-size: .9rem; }
+
+  .total-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; font-weight: 600; background: var(--bg); border-top: 1px solid var(--border); border-radius: 0 0 10px 10px; font-size: .9rem; }
+  .total-val { font-size: 1rem; font-variant-numeric: tabular-nums; }
+  .total-err { color: #DC2626; font-size: .83rem; font-weight: 400; }
+  .total-ok  { color: #16a34a; }
+
+  /* ── Alerts ── */
+  .alert { padding: 12px 16px; border-radius: 8px; margin: 12px 0; font-size: .875rem; display: flex; align-items: flex-start; gap: 8px; }
+  .alert-error   { background: #FEF2F2; color: #991B1B; border: 1px solid #FECACA; }
+  .alert-warn    { background: #FFFBEB; color: #92400E; border: 1px solid #FDE68A; }
+  .alert-success { background: #F0FDF4; color: #166534; border: 1px solid #BBF7D0; }
+  .alert-info    { background: var(--blue-light); color: var(--blue-dark); border: 1px solid var(--blue-mid); }
+
+  label { cursor: pointer; }
+  input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--blue); border-radius: 4px; }
+
+  .section-label {
+    font-weight: 600; font-size: .75rem; text-transform: uppercase; letter-spacing: .07em;
+    color: var(--text-muted); margin: 24px 0 12px;
+  }
+
+  /* ── Summary table ── */
+  .summary-table { width: 100%; border-collapse: collapse; font-size: .85rem; margin-top: 12px; border-radius: 10px; overflow: hidden; }
+  .summary-table th { background: var(--blue); color: var(--white); font-weight: 600; padding: 10px 12px; text-align: left; }
+  .summary-table td { padding: 9px 12px; border-bottom: 1px solid #F3F4F6; }
+  .summary-table tr:last-child td { border-bottom: none; }
+  .summary-table tr:hover td { background: var(--blue-light); }
+
+  /* ── Spinner / loading ── */
+  .spinner { display: inline-block; width: 20px; height: 20px; border: 2.5px solid var(--blue-mid); border-top-color: var(--blue); border-radius: 50%; animation: spin .65s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-box { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 80px 0; color: var(--text-muted); font-size: .9rem; }
+
+  /* ── Form inputs ── */
+  .form-group { margin-bottom: 18px; }
+  .form-group label { display: block; font-weight: 500; margin-bottom: 6px; font-size: .875rem; color: var(--text); }
+  .form-group input, .form-group select {
+    width: 100%; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 8px;
+    font-family: inherit; font-size: .95rem; background: var(--white); color: var(--text);
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .form-group input:focus, .form-group select:focus {
+    outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(40,116,233,.15);
+  }
+
+  /* ── Metric chip ── */
+  .metric { display: inline-flex; flex-direction: column; background: var(--blue-light); border: 1px solid var(--blue-mid); border-radius: 10px; padding: 10px 18px; margin: 8px 8px 8px 0; }
+  .metric-label { font-size: .75rem; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+  .metric-val { font-size: 1.3rem; font-weight: 700; color: var(--blue); font-variant-numeric: tabular-nums; margin-top: 2px; }
+
+  /* ── Tooltip ── */
+  .tooltip-icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; background: var(--border); color: var(--text-muted); border-radius: 50%; font-size: 10px; font-weight: 700; cursor: help; flex-shrink: 0; }
+  .tooltip-icon:hover { background: var(--blue-mid); color: var(--blue-dark); }
+</style>
+</head>
+<body>
+<div id="save-toast" style="display:none"></div>
+<header class="slsp-header">
+  <img class="logo" src="image.png" alt="Slovenská sporiteľňa">
+  <div class="divider"></div>
+  <span class="app-name">ABC Dotazník</span>
+</header>
+<div id="app"><div class="loading-box"><div class="spinner"></div> Načítavanie…</div></div>
+
+<script>
+// ==================== STATE ====================
+const S = {
+  step: 'loading',
+  userId: null, cc: null, formType: null,
+  actVersion: null, prevVersion: null,
+  numFteTotal: 0,
+  ccDesc: null,
+  selectedBls: {},         // { bl: alloc }
+  selectedProducts: {},    // { 'bl|prod': alloc }
+  selectedTransTypes: {},  // { 'bl|prod|trans': alloc }
+  selectedChannels: {},    // { 'bl|prod|trans|chan': alloc }
+  staticData: null, dynamicData: null,
+  hierarchy: null, blUnique: null,
+};
+
+// ==================== UTILS ====================
+function fmt(v, d) {
+  if (isNaN(v)) return '0';
+  if (d === 0) return Math.round(v).toString();
+  return v.toFixed(d).replace('.', ',');
+}
+function parseNum(s) {
+  if (s === null || s === undefined || s === '') return 0;
+  return parseFloat(String(s).replace(',', '.')) || 0;
+}
+function toCommaDecimal(v) {
+  if (!v || v === 0) return '0';
+  return String(parseFloat(v)).replace('.', ',');
+}
+function slovakDatetime() {
+  const n = new Date();
+  const pad = x => String(x).padStart(2, '0');
+  return `${pad(n.getDate())}.${pad(n.getMonth()+1)}.${n.getFullYear()} ${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`;
+}
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ==================== DATA PROCESSING ====================
+function buildHierarchy(transData) {
+  const bl2prod = {};
+  const prod2trans = {};
+  const trans2chan = {};
+  for (const r of transData) {
+    const bl = (r.BL || '').trim();
+    const prod = (r.PRODUCT || '').trim();
+    const trans = (r.TRANS_TYPE || '').trim();
+    const chan = (r.CHANNEL || '').trim();
+    if (!bl || !prod || !trans || !chan) continue;
+    if (!bl2prod[bl]) bl2prod[bl] = new Set();
+    bl2prod[bl].add(prod);
+    const pk = `${bl}|${prod}`;
+    if (!prod2trans[pk]) prod2trans[pk] = new Set();
+    prod2trans[pk].add(trans);
+    const tk = `${bl}|${prod}|${trans}`;
+    if (!trans2chan[tk]) trans2chan[tk] = new Set();
+    trans2chan[tk].add(chan);
+  }
+  return { bl2prod, prod2trans, trans2chan };
+}
+
+function getSortedBLs() {
+  const { blOrder, transData } = S.staticData;
+  const blSet = new Set(transData.map(r => (r.BL || '').trim()).filter(Boolean));
+  const blOrderMap = {};
+  const blLabelMap = {};
+  const blSubsegMap = {};
+  for (const r of blOrder) {
+    blOrderMap[r.BL] = parseNum(r.BL_ORDER);
+    const lbl = (r.TXT_BUS_LINE || '').trim();
+    blLabelMap[r.BL] = (lbl && lbl !== r.BL) ? `${lbl} - ${r.BL}` : r.BL;
+    blSubsegMap[r.BL] = r.SUBSEGMENT || '';
+  }
+  return [...blSet]
+    .map(bl => ({ bl, label: blLabelMap[bl] || bl, order: blOrderMap[bl] ?? 999, subsegment: blSubsegMap[bl] || '' }))
+    .sort((a, b) => a.order - b.order);
+}
+
+function getSortedProducts(bl) {
+  const { prodMaskOrder } = S.staticData;
+  const prods = [...(S.hierarchy.bl2prod[bl] || [])];
+  const orderMap = {};
+  for (const r of prodMaskOrder) orderMap[r.DOM_ABC_PRD_MASK] = parseNum(r.PROD_ORDER ?? 999);
+  return prods.sort((a, b) => (orderMap[a] ?? 999) - (orderMap[b] ?? 999));
+}
+
+function getSortedGPM(bl, prod) {
+  const { gpmOrder } = S.staticData;
+  const transs = [...(S.hierarchy.prod2trans[`${bl}|${prod}`] || [])];
+  const orderMap = {};
+  for (const r of gpmOrder) orderMap[r.GPM_HIER] = parseNum(r.GPM_ORDER ?? 999);
+  return transs.sort((a, b) => (orderMap[a] ?? 999) - (orderMap[b] ?? 999));
+}
+
+function getSortedChannels(bl, prod, trans) {
+  const { channelMaskOrder } = S.staticData;
+  const chans = [...(S.hierarchy.trans2chan[`${bl}|${prod}|${trans}`] || [])];
+  const orderMap = {};
+  for (const r of channelMaskOrder) orderMap[r.CHANNEL_ABC_MASK] = parseNum(r.CHANNEL_ORDER ?? 999);
+  return chans.sort((a, b) => (orderMap[a] ?? 999) - (orderMap[b] ?? 999));
+}
+
+function applyProductMask(prod) {
+  const r = S.staticData.prodMaskOrder.find(x => x.DOM_ABC_PRD_MASK === prod);
+  return r ? (r.DOM_ABC_PRD || prod) : prod;
+}
+function removeProductMask(masked) {
+  const r = S.staticData.prodMaskOrder.find(x => x.DOM_ABC_PRD === masked);
+  return r ? (r.DOM_ABC_PRD_MASK || masked) : masked;
+}
+function applyChannelMask(chan) {
+  const r = S.staticData.channelMaskOrder.find(x => x.CHANNEL_ABC_MASK === chan);
+  return r ? (r.CHANNEL_ABC || chan) : chan;
+}
+function removeChannelMask(masked) {
+  const r = S.staticData.channelMaskOrder.find(x => x.CHANNEL_ABC === masked);
+  return r ? (r.CHANNEL_ABC_MASK || masked) : masked;
+}
+function getBLInfo(bl) {
+  const r = S.staticData.blOrder.find(x => x.BL === bl);
+  return { txtBusLine: r?.TXT_BUS_LINE || '', subsegment: r?.SUBSEGMENT || '', tooltip: r?.TOOLTIP || '' };
+}
+function getProductTooltip(prod) {
+  const r = S.staticData.prodMaskOrder.find(x => x.DOM_ABC_PRD_MASK === prod);
+  return r?.TOOLTIP || '';
+}
+function getGPMTooltip(trans) {
+  const r = S.staticData.gpmOrder.find(x => x.GPM_HIER === trans);
+  return r?.TOOLTIP || '';
+}
+function getChannelTooltip(chan) {
+  const r = S.staticData.channelMaskOrder.find(x => x.CHANNEL_ABC_MASK === chan);
+  return r?.TOOLTIP || '';
+}
+
+// ==================== SAVED DATA HELPERS ====================
+function getSavedRows(cc, version, statusList) {
+  return S.dynamicData.savedForms.filter(r =>
+    String(r.CC || '').trim() === String(cc).trim() &&
+    String(r.VERSION || '').trim() === String(version).trim() &&
+    (!statusList || statusList.includes(String(r.STATUS || '').trim()))
+  );
+}
+function getPrevRows(cc, prevVersion) {
+  if (!prevVersion) return [];
+  return S.dynamicData.savedForms.filter(r =>
+    String(r.CC || '').trim() === String(cc).trim() &&
+    String(r.VERSION || '').trim() === String(prevVersion).trim()
+  );
+}
+const STATUS_ORDER = { Step1: 1, Step2: 2, Step3: 3, Submitted: 4 };
+function maxStatus(rows) {
+  if (!rows.length) return '';
+  return rows.reduce((best, r) => {
+    return (STATUS_ORDER[r.STATUS] || 0) > (STATUS_ORDER[best] || 0) ? r.STATUS : best;
+  }, '');
+}
+
+// ==================== SAVE ====================
+async function apiPost(path, body) {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const j = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+    throw new Error(j.error || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+function buildFormRows(status) {
+  const rows = [];
+  const now = slovakDatetime();
+
+  if (status === 'Step1') {
+    for (const [bl, ratBl] of Object.entries(S.selectedBls)) {
+      const { txtBusLine, subsegment } = getBLInfo(bl);
+      rows.push({
+        USER_ID: S.userId, CC: S.cc, BL: bl, TXT_BUS_LINE: txtBusLine,
+        RAT_BL: toCommaDecimal(ratBl), DOM_ABC_PROD: '', RAT_PROD: '0',
+        GPM_HIER: '', RAT_ACTIVITY: '0', TXT_CHANNEL: '', RAT_CHANNEL: '0',
+        SUBSEGMENT: subsegment, RAT_TOTAL: '0', VERSION: S.actVersion, STATUS: status, FILL_DATE: now,
+      });
+    }
+  } else if (status === 'Step2') {
+    for (const [key, ratProd] of Object.entries(S.selectedProducts)) {
+      const [bl, prod] = key.split('|');
+      if (!S.selectedBls[bl] || ratProd === 0) continue;
+      const { txtBusLine, subsegment } = getBLInfo(bl);
+      rows.push({
+        USER_ID: S.userId, CC: S.cc, BL: bl, TXT_BUS_LINE: txtBusLine,
+        RAT_BL: toCommaDecimal(S.selectedBls[bl]), DOM_ABC_PROD: applyProductMask(prod),
+        RAT_PROD: toCommaDecimal(ratProd), GPM_HIER: '', RAT_ACTIVITY: '0',
+        TXT_CHANNEL: '', RAT_CHANNEL: '0', SUBSEGMENT: subsegment,
+        RAT_TOTAL: '0', VERSION: S.actVersion, STATUS: status, FILL_DATE: now,
+      });
+    }
+  } else if (status === 'Step3') {
+    for (const [key, ratAct] of Object.entries(S.selectedTransTypes)) {
+      const [bl, prod, trans] = key.split('|');
+      if (!S.selectedBls[bl] || !S.selectedProducts[`${bl}|${prod}`] || ratAct === 0) continue;
+      const { txtBusLine, subsegment } = getBLInfo(bl);
+      rows.push({
+        USER_ID: S.userId, CC: S.cc, BL: bl, TXT_BUS_LINE: txtBusLine,
+        RAT_BL: toCommaDecimal(S.selectedBls[bl]), DOM_ABC_PROD: applyProductMask(prod),
+        RAT_PROD: toCommaDecimal(S.selectedProducts[`${bl}|${prod}`]),
+        GPM_HIER: trans, RAT_ACTIVITY: toCommaDecimal(ratAct),
+        TXT_CHANNEL: '', RAT_CHANNEL: '0', SUBSEGMENT: subsegment,
+        RAT_TOTAL: '0', VERSION: S.actVersion, STATUS: status, FILL_DATE: now,
+      });
+    }
+  } else if (status === 'Submitted') {
+    for (const [key, ratChan] of Object.entries(S.selectedChannels)) {
+      const [bl, prod, trans, chan] = key.split('|');
+      const ratBl = S.selectedBls[bl] || 0;
+      const ratProd = S.selectedProducts[`${bl}|${prod}`] || 0;
+      const ratAct = S.selectedTransTypes[`${bl}|${prod}|${trans}`] || 0;
+      if (!ratBl || !ratProd || !ratAct || !ratChan) continue;
+      const { txtBusLine, subsegment } = getBLInfo(bl);
+      const ratTotal = ratBl * ratProd * ratAct * ratChan / 1_000_000;
+      rows.push({
+        USER_ID: S.userId, CC: S.cc, BL: bl, TXT_BUS_LINE: txtBusLine,
+        RAT_BL: toCommaDecimal(ratBl), DOM_ABC_PROD: applyProductMask(prod),
+        RAT_PROD: toCommaDecimal(ratProd), GPM_HIER: trans, RAT_ACTIVITY: toCommaDecimal(ratAct),
+        TXT_CHANNEL: applyChannelMask(chan), RAT_CHANNEL: toCommaDecimal(ratChan),
+        SUBSEGMENT: subsegment, RAT_TOTAL: toCommaDecimal(ratTotal),
+        VERSION: S.actVersion, STATUS: status, FILL_DATE: now,
+      });
+    }
+  }
+  return rows;
+}
+
+async function saveStep(status) {
+  const rows = buildFormRows(status);
+  await apiPost('/api/save-form', { rows, cc: S.cc, version: S.actVersion });
+  // Update local cache
+  if (S.dynamicData) {
+    const other = S.dynamicData.savedForms.filter(r =>
+      !(String(r.CC || '').trim() === String(S.cc).trim() &&
+        String(r.VERSION || '').trim() === String(S.actVersion).trim())
+    );
+    S.dynamicData.savedForms = [...other, ...rows];
+  }
+}
+
+async function saveBsStep() {
+  const now = slovakDatetime();
+  const rows = [];
+  for (const [bl, ratTotal] of Object.entries(S.selectedBls)) {
+    const { txtBusLine, subsegment } = getBLInfo(bl);
+    rows.push({
+      USER_ID: S.userId, BL: bl, TXT_BUS_LINE: txtBusLine, SUBSEGMENT: subsegment,
+      COST_CENTER: S.cc, RAT_TOTAL: toCommaDecimal(ratTotal),
+      VERSION: S.actVersion, STATUS: 'Submitted', FILL_DATE: now,
+    });
+  }
+  await apiPost('/api/save-bs', { rows, cc: S.cc, version: S.actVersion });
+}
+
+let _saveToastTimer = null;
+function saveInBackground(status) {
+  const toast = document.getElementById('save-toast');
+  toast.className = 'saving';
+  toast.style.display = 'flex';
+  toast.textContent = 'Ukladám…';
+  clearTimeout(_saveToastTimer);
+
+  saveStep(status).then(() => {
+    toast.className = 'saved';
+    toast.textContent = '✓ Uložené';
+    _saveToastTimer = setTimeout(() => { toast.style.display = 'none'; }, 3000);
+  }).catch(e => {
+    toast.className = 'error';
+    toast.textContent = `❌ Chyba pri ukladaní — kliknite pre detaily`;
+    toast.onclick = () => alert(e.message);
+  });
+}
+
+function saveBsInBackground() {
+  const toast = document.getElementById('save-toast');
+  toast.className = 'saving';
+  toast.style.display = 'flex';
+  toast.textContent = 'Ukladám…';
+  clearTimeout(_saveToastTimer);
+
+  saveBsStep().then(() => {
+    toast.className = 'saved';
+    toast.textContent = '✓ Uložené';
+    _saveToastTimer = setTimeout(() => { toast.style.display = 'none'; }, 3000);
+  }).catch(e => {
+    toast.className = 'error';
+    toast.textContent = `❌ Chyba pri ukladaní — kliknite pre detaily`;
+    toast.onclick = () => alert(e.message);
+  });
+}
+
+// ==================== RENDER HELPERS ====================
+function renderTitle() {
+  let title = 'ABC Dotazník';
+  if (S.cc && S.staticData?.ccDesc) {
+    const r = S.staticData.ccDesc.find(x => String(x.ID || '').trim() === String(S.cc).trim());
+    if (r) title = `ABC Dotazník — ${r.TXT_DESCRIPTION}`;
+  }
+  const sub = S.cc ? `Nákladové stredisko ${esc(S.cc)}` : '';
+  return `<div class="page-title"><h1>${esc(title)}</h1>${sub ? `<p>${sub}</p>` : ''}</div>`;
+}
+
+function tooltipIcon(text) {
+  if (!text) return '';
+  return `<span class="tooltip-icon" title="${esc(text)}">?</span>`;
+}
+
+function allocationTable(items, getDefault, keyPrefix, showFte, parentFteFactor) {
+  // items: [{id, label, tooltip}]
+  // getDefault(id) → number
+  // Returns HTML string + attach code
+  let html = `<div class="alloc-header"><span>Názov</span><span>Alokácia (%)</span><span>FTEs</span></div>`;
+  for (const item of items) {
+    const def = getDefault(item.id) || 0;
+    const safeId = CSS.escape(`${keyPrefix}_${item.id}`);
+    html += `
+      <div class="alloc-row" id="row_${safeId}">
+        <div class="name-cell">
+          <input type="checkbox" id="chk_${safeId}" ${def > 0 ? 'checked' : ''}>
+          <label for="chk_${safeId}">${esc(item.label)}${tooltipIcon(item.tooltip)}</label>
+        </div>
+        <div>
+          <input type="number" id="num_${safeId}" min="0" max="100" step="0.1"
+            value="${def}"
+            style="display:${def > 0 ? 'block' : 'none'}"
+            ${!S.numFteTotal ? '' : ''}>
+        </div>
+        <div class="fte-cell" id="fte_${safeId}">
+          ${def > 0 && S.numFteTotal ? fmt((def / 100) * S.numFteTotal * parentFteFactor, 2) : ''}
+        </div>
+      </div>`;
+  }
+  return html;
+}
+
+// ==================== STEP RENDERERS ====================
+
+function render() {
+  const app = document.getElementById('app');
+  switch (S.step) {
+    case 'loading':      app.innerHTML = `<div class="loading-box"><div class="spinner"></div><span>Načítavanie dát…</span></div>`; break;
+    case 'user_input':   renderUserInput(); break;
+    case 'step1':        renderStep1(); break;
+    case 'step2':        renderStep2(); break;
+    case 'step3':        renderStep3(); break;
+    case 'step4':        renderStep4(); break;
+    case 'summary':      renderSummary(); break;
+    case 'bs_step1':     renderBsStep1(); break;
+    case 'bs_summary':   renderBsSummary(); break;
+    case 'error':
+      app.innerHTML = `<div class="alert alert-error">❌ ${esc(S.errorMsg)}</div><button class="btn btn-secondary" onclick="init()">Skúsiť znova</button>`;
+      break;
+  }
+}
+
+// -- USER INPUT --
+function renderUserInput() {
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    ${renderTitle()}
+    <div class="card">
+      <h2>Zadajte vaše údaje</h2>
+      <p class="sub">Pred začatím vyplnenia formulára zadajte svoje osobné číslo a nákladové stredisko.</p>
+      <div class="form-group">
+        <label for="inp_uid">User ID</label>
+        <input type="text" id="inp_uid" placeholder="4XXXXX" maxlength="6" value="${esc(S.userId || '')}">
+        <div id="uid_msg" style="margin-top:6px; font-size:.85rem;"></div>
+      </div>
+      <div class="form-group" id="cc_group" style="display:none">
+        <label for="sel_cc">Nákladové stredisko</label>
+        <select id="sel_cc"></select>
+      </div>
+      <div id="uid_err" class="alert alert-error" style="display:none"></div>
+      <div style="margin-top:20px">
+        <button class="btn btn-primary" id="btn_continue" disabled>Pokračovať →</button>
+      </div>
+    </div>`;
+
+  const inp = document.getElementById('inp_uid');
+  const selCc = document.getElementById('sel_cc');
+  const ccGroup = document.getElementById('cc_group');
+  const uidMsg = document.getElementById('uid_msg');
+  const uidErr = document.getElementById('uid_err');
+  const btn = document.getElementById('btn_continue');
+
+  let ccMap = {}; // display → cc value
+
+  function onUidChange() {
+    const uid = inp.value.trim();
+    if (!uid) { uidMsg.textContent = ''; ccGroup.style.display = 'none'; btn.disabled = true; return; }
+    if (!/^4\d{5}$/.test(uid)) {
+      uidMsg.style.color = '#DC2626';
+      uidMsg.textContent = 'User ID musí začínať číslom 4 a byť presne 6 miestne.';
+      ccGroup.style.display = 'none'; btn.disabled = true; return;
+    }
+    uidMsg.style.color = '#16a34a';
+    uidMsg.textContent = `✓ User ID ${uid} je platné.`;
+
+    const allowed = S.dynamicData.ccUser
+      .filter(r => String(r.USER_ID || '').trim() === uid)
+      .map(r => String(r.CC || '').trim())
+      .filter(Boolean);
+
+    if (!allowed.length) {
+      uidErr.style.display = 'block';
+      uidErr.textContent = 'User ID nie je v zozname editorov ABC kľúčov.';
+      ccGroup.style.display = 'none'; btn.disabled = true; return;
+    }
+    uidErr.style.display = 'none';
+
+    ccMap = {};
+    selCc.innerHTML = '';
+    for (const cc of [...new Set(allowed)].sort()) {
+      const r = S.staticData.ccDesc?.find(x => String(x.ID || '').trim() === cc);
+      const display = r ? `${cc} - ${r.TXT_DESCRIPTION}` : cc;
+      ccMap[display] = cc;
+      const opt = document.createElement('option');
+      opt.value = display; opt.textContent = display;
+      selCc.appendChild(opt);
+    }
+    ccGroup.style.display = 'block';
+    btn.disabled = false;
+  }
+
+  inp.addEventListener('input', onUidChange);
+  if (S.userId) onUidChange();
+
+  btn.addEventListener('click', async () => {
+    const uid = inp.value.trim();
+    const ccDisplay = selCc.value;
+    const cc = ccMap[ccDisplay] || ccDisplay.split(' - ')[0];
+    S.userId = uid;
+    S.cc = cc;
+
+    // Determine form type
+    const ccRow = S.dynamicData.ccUser.find(r =>
+      String(r.USER_ID || '').trim() === uid && String(r.CC || '').trim() === cc);
+    S.formType = (ccRow?.FORM_TYPE || 'ABC').trim();
+
+    // Determine version
+    const versions = S.staticData.version;
+    const maxId = Math.max(...versions.map(r => parseNum(r.VERSION_ID)));
+    const actRow = versions.find(r => parseNum(r.VERSION_ID) === maxId);
+    S.actVersion = actRow?.VERSION || '';
+    const prevRow = maxId > 1 ? versions.find(r => parseNum(r.VERSION_ID) === maxId - 1) : null;
+    S.prevVersion = prevRow?.VERSION || null;
+
+    // FTE
+    const fteRow = S.staticData.fteData.find(r => String(r.CC || '').trim() === cc);
+    S.numFteTotal = fteRow ? parseNum(fteRow.NUM_FTE) : 0;
+
+    // Load previous/saved selections
+    const currentRows = getSavedRows(cc, S.actVersion, null);
+    const prevRows = getPrevRows(cc, S.prevVersion);
+    const sourceRows = currentRows.length ? currentRows : prevRows;
+    const useVersion = currentRows.length ? S.actVersion : S.prevVersion;
+
+    S.selectedBls = {}; S.selectedProducts = {}; S.selectedTransTypes = {}; S.selectedChannels = {};
+
+    for (const r of sourceRows) {
+      const bl = String(r.BL || '').trim();
+      const prod = String(r.DOM_ABC_PROD || '').trim();
+      const trans = String(r.GPM_HIER || '').trim();
+      const chan = String(r.TXT_CHANNEL || '').trim();
+
+      const ratBl = parseNum(r.RAT_BL);
+      if (bl && ratBl > 0) S.selectedBls[bl] = ratBl;
+
+      const ratProd = parseNum(r.RAT_PROD);
+      if (bl && prod && ratProd > 0) {
+        const unmaskedProd = removeProductMask(prod);
+        S.selectedProducts[`${bl}|${unmaskedProd}`] = ratProd;
+      }
+      const ratAct = parseNum(r.RAT_ACTIVITY);
+      if (bl && prod && trans && ratAct > 0) {
+        const unmaskedProd = removeProductMask(prod);
+        S.selectedTransTypes[`${bl}|${unmaskedProd}|${trans}`] = ratAct;
+      }
+      const ratChan = parseNum(r.RAT_CHANNEL);
+      if (bl && prod && trans && chan && ratChan > 0) {
+        const unmaskedProd = removeProductMask(prod);
+        const unmaskedChan = removeChannelMask(chan);
+        S.selectedChannels[`${bl}|${unmaskedProd}|${trans}|${unmaskedChan}`] = ratChan;
+      }
+    }
+
+    // Rebuild hierarchy filtered to actVersion
+    const td = S.staticData.transData.filter(r =>
+      String(r.VERSION || '').trim() === String(S.actVersion).trim());
+    S.hierarchy = buildHierarchy(td);
+    S.blUnique = getSortedBLs();
+
+    S.step = S.formType === 'BS' ? 'bs_step1' : 'step1';
+    render();
+  });
+}
+
+// -- STEP 1: Business Lines --
+function renderStep1() {
+  const app = document.getElementById('app');
+  const bls = S.blUnique;
+  const { blOrder } = S.staticData;
+  const tooltipMap = {};
+  for (const r of blOrder) { if (r.TOOLTIP) tooltipMap[r.BL] = r.TOOLTIP; }
+
+  // Current selections
+  const checked = {}; // bl → bool
+  const allocs = {}; // bl → float
+  for (const { bl } of bls) {
+    checked[bl] = bl in S.selectedBls;
+    allocs[bl] = S.selectedBls[bl] || 0;
+  }
+
+  let rows = '';
+  for (const { bl, label } of bls) {
+    const id = `bl_${bl}`;
+    rows += `
+      <div class="alloc-row" id="row_${id}">
+        <div class="name-cell">
+          <input type="checkbox" id="chk_${id}" data-bl="${esc(bl)}" ${checked[bl] ? 'checked' : ''}>
+          <label for="chk_${id}">${esc(label)}${tooltipIcon(tooltipMap[bl] || '')}</label>
+        </div>
+        <div>
+          <input type="number" id="num_${id}" data-bl="${esc(bl)}" min="0" max="100" step="0.1"
+            value="${allocs[bl]}"
+            style="display:${checked[bl] ? 'block' : 'none'}">
+        </div>
+        <div class="fte-cell" id="fte_${id}"></div>
+      </div>`;
+  }
+
+  app.innerHTML = `
+    ${renderTitle()}
+    <div class="row-nav">
+      <button class="btn btn-secondary" id="btn_back">← Zmeniť údaje</button>
+      <button class="btn btn-primary" id="btn_next" disabled>Ďalej →</button>
+    </div>
+    <div class="card">
+      <div class="step-badge">Krok 1 z 4</div>
+      <h2>Výber Biznis línií a segmentov</h2>
+      <p class="sub">Vyberte všetky biznis línie a segmenty, v ktorých je vaše oddelenie aktívne, a rozdeľte medzi nimi alokáciu (celkom 100%).</p>
+      <div class="section-label">Business Lines</div>
+      <div class="alloc-wrap">
+        <div class="alloc-header"><span>Názov</span><span>Alokácia (%)</span><span>FTEs</span></div>
+        ${rows}
+        <div class="total-row">
+          <span>Celková alokácia:</span>
+          <span class="total-val" id="total_val">0,0%</span>
+          <span id="total_err" class="total-err"></span>
+        </div>
+      </div>
+      <div id="save_err" class="alert alert-error" style="display:none; margin-top:12px"></div>
+    </div>`;
+
+  // Wire up
+  function update() {
+    let total = 0;
+    let anyChecked = false;
+    for (const { bl } of bls) {
+      const chk = document.getElementById(`chk_bl_${bl}`);
+      const num = document.getElementById(`num_bl_${bl}`);
+      const fte = document.getElementById(`fte_bl_${bl}`);
+      if (!chk) continue;
+      const isChecked = chk.checked;
+      num.style.display = isChecked ? 'block' : 'none';
+      if (isChecked) {
+        anyChecked = true;
+        const v = parseFloat(num.value) || 0;
+        total += v;
+        if (S.numFteTotal) fte.textContent = fmt((v / 100) * S.numFteTotal, 2);
+      } else {
+        fte.textContent = '';
+      }
+    }
+    const ok = anyChecked && Math.abs(total - 100) < 0.01;
+    document.getElementById('total_val').textContent = `${fmt(total, 1)}%`;
+    document.getElementById('total_val').className = `total-val ${ok ? 'total-ok' : ''}`;
+    document.getElementById('total_err').textContent = ok ? '' : total > 0 ? `⚠️ Musí byť presne 100%` : '';
+    document.getElementById('btn_next').disabled = !ok;
+  }
+
+  document.querySelectorAll('[id^="chk_bl_"], [id^="num_bl_"]').forEach(el => el.addEventListener('input', update));
+  document.querySelectorAll('[id^="chk_bl_"]').forEach(el => el.addEventListener('change', update));
+  update();
+
+  document.getElementById('btn_back').addEventListener('click', () => {
+    S.step = 'user_input'; S.selectedBls = {}; S.selectedProducts = {}; S.selectedTransTypes = {}; S.selectedChannels = {};
+    render();
+  });
+
+  document.getElementById('btn_next').addEventListener('click', async () => {
+    // Collect
+    S.selectedBls = {};
+    for (const { bl } of bls) {
+      const chk = document.getElementById(`chk_bl_${bl}`);
+      const num = document.getElementById(`num_bl_${bl}`);
+      if (chk?.checked) S.selectedBls[bl] = parseFloat(num?.value) || 0;
+    }
+    // Remove products/trans/channels for deselected BLs
+    const blSet = new Set(Object.keys(S.selectedBls));
+    for (const k of Object.keys(S.selectedProducts)) { if (!blSet.has(k.split('|')[0])) delete S.selectedProducts[k]; }
+    for (const k of Object.keys(S.selectedTransTypes)) { if (!blSet.has(k.split('|')[0])) delete S.selectedTransTypes[k]; }
+    for (const k of Object.keys(S.selectedChannels)) { if (!blSet.has(k.split('|')[0])) delete S.selectedChannels[k]; }
+
+    saveInBackground('Step1');
+    S.step = 'step2'; render();
+  });
+}
+
+// -- STEP 2: Products --
+function renderStep2() {
+  const app = document.getElementById('app');
+  const sortedBls = Object.entries(S.selectedBls).sort((a, b) => {
+    const oa = S.blUnique.find(x => x.bl === a[0])?.order ?? 999;
+    const ob = S.blUnique.find(x => x.bl === b[0])?.order ?? 999;
+    return oa - ob;
+  });
+
+  let sections = '';
+  for (const [bl, blAlloc] of sortedBls) {
+    const products = getSortedProducts(bl);
+    const fteFactor = blAlloc / 100;
+    let rows = '';
+    for (const prod of products) {
+      const id = `p_${bl}_${prod}`;
+      const defaultVal = S.selectedProducts[`${bl}|${prod}`] || 0;
+      const checked = defaultVal > 0;
+      rows += `
+        <div class="alloc-row">
+          <div class="name-cell">
+            <input type="checkbox" id="chk_${id}" data-bl="${esc(bl)}" data-prod="${esc(prod)}" ${checked ? 'checked' : ''}>
+            <label for="chk_${id}">${esc(prod)}${tooltipIcon(getProductTooltip(prod))}</label>
+          </div>
+          <div>
+            <input type="number" id="num_${id}" data-bl="${esc(bl)}" data-prod="${esc(prod)}"
+              min="0" max="100" step="0.1" value="${defaultVal}"
+              style="display:${checked ? 'block' : 'none'}">
+          </div>
+          <div class="fte-cell" id="fte_${id}">
+            ${checked && S.numFteTotal ? fmt((defaultVal / 100) * S.numFteTotal * fteFactor, 2) : ''}
+          </div>
+        </div>`;
+    }
+    const weighted = (blAlloc / 100) * S.numFteTotal;
+    sections += `
+      <div class="card" style="margin-bottom:12px">
+        <h3 style="margin-top:0">${esc(bl)} <span style="font-weight:400;color:var(--text-muted)">(${fmt(blAlloc, 0)}% — ${fmt(weighted, 2)} FTEs)</span></h3>
+        <div class="alloc-wrap">
+          <div class="alloc-header"><span>Produkt</span><span>Alokácia (%)</span><span>FTEs</span></div>
+          ${rows}
+          <div class="total-row">
+            <span>Alokácia pre ${esc(bl)}:</span>
+            <span class="total-val" id="tot_${bl}">0,0%</span>
+            <span id="terr_${bl}" class="total-err"></span>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  app.innerHTML = `
+    ${renderTitle()}
+    <div class="row-nav">
+      <button class="btn btn-secondary" id="btn_back">← Späť</button>
+      <button class="btn btn-primary" id="btn_next">Ďalej →</button>
+    </div>
+    <div class="step-badge">Krok 2 z 4</div>
+    <h2 style="margin-bottom:4px">Výber produktov</h2>
+    <p class="sub">Pre každú vybranú biznis líniu vyberte produkty a rozdeľte alokáciu (100% pre každú BL).</p>
+    ${sections}
+    <div id="save_err" class="alert alert-error" style="display:none"></div>`;
+
+  function updateTotals() {
+    let allValid = true;
+    for (const [bl] of sortedBls) {
+      let total = 0; let anyChecked = false;
+      document.querySelectorAll(`[data-bl="${bl}"][id^="chk_p_"]`).forEach(chk => {
+        const prod = chk.dataset.prod;
+        const num = document.getElementById(`num_p_${bl}_${prod}`);
+        const fte = document.getElementById(`fte_p_${bl}_${prod}`);
+        num.style.display = chk.checked ? 'block' : 'none';
+        if (chk.checked) {
+          anyChecked = true;
+          const v = parseFloat(num.value) || 0;
+          total += v;
+          if (S.numFteTotal) fte.textContent = fmt((v / 100) * S.numFteTotal * (S.selectedBls[bl] / 100), 2);
+        } else { fte.textContent = ''; }
+      });
+      const ok = anyChecked && Math.abs(total - 100) < 0.01;
+      const totEl = document.getElementById(`tot_${bl}`);
+      const terrEl = document.getElementById(`terr_${bl}`);
+      if (totEl) { totEl.textContent = `${fmt(total, 1)}%`; totEl.className = `total-val ${ok ? 'total-ok' : ''}`; }
+      if (terrEl) terrEl.textContent = ok ? '' : (!anyChecked ? '⚠️ Vyberte aspoň 1 produkt' : '⚠️ Musí byť presne 100%');
+      if (!ok) allValid = false;
+    }
+    document.getElementById('btn_next').disabled = !allValid;
+  }
+
+  document.querySelectorAll('[id^="chk_p_"], [id^="num_p_"]').forEach(el => {
+    el.addEventListener('input', updateTotals);
+    el.addEventListener('change', updateTotals);
+  });
+  updateTotals();
+
+  document.getElementById('btn_back').addEventListener('click', () => { S.step = 'step1'; render(); });
+
+  document.getElementById('btn_next').addEventListener('click', async () => {
+    S.selectedProducts = {};
+    for (const [bl] of sortedBls) {
+      document.querySelectorAll(`[data-bl="${bl}"][id^="chk_p_"]`).forEach(chk => {
+        if (chk.checked) {
+          const prod = chk.dataset.prod;
+          S.selectedProducts[`${bl}|${prod}`] = parseFloat(document.getElementById(`num_p_${bl}_${prod}`)?.value) || 0;
+        }
+      });
+    }
+    // Prune orphans
+    const prodSet = new Set(Object.keys(S.selectedProducts));
+    for (const k of Object.keys(S.selectedTransTypes)) { const [bl, prod] = k.split('|'); if (!prodSet.has(`${bl}|${prod}`)) delete S.selectedTransTypes[k]; }
+    for (const k of Object.keys(S.selectedChannels)) { const [bl, prod] = k.split('|'); if (!prodSet.has(`${bl}|${prod}`)) delete S.selectedChannels[k]; }
+
+    saveInBackground('Step2');
+    S.step = 'step3'; render();
+  });
+}
+
+// -- STEP 3: Activities (Trans types) --
+function renderStep3() {
+  const app = document.getElementById('app');
+  const blOrdMap = Object.fromEntries(S.blUnique.map(x => [x.bl, x.order]));
+  const prodOrdMap = {};
+  for (const r of S.staticData.prodMaskOrder) prodOrdMap[r.DOM_ABC_PRD_MASK] = parseNum(r.PROD_ORDER ?? 999);
+
+  const sortedProds = Object.entries(S.selectedProducts).sort((a, b) => {
+    const [blA, pA] = a[0].split('|'); const [blB, pB] = b[0].split('|');
+    return (blOrdMap[blA] ?? 999) - (blOrdMap[blB] ?? 999) || (prodOrdMap[pA] ?? 999) - (prodOrdMap[pB] ?? 999);
+  });
+
+  let sections = '';
+  for (const [pk, prodAlloc] of sortedProds) {
+    const [bl, prod] = pk.split('|');
+    const blAlloc = S.selectedBls[bl] || 0;
+    const transs = getSortedGPM(bl, prod);
+    const fteFactor = (blAlloc / 100) * (prodAlloc / 100);
+    let rows = '';
+    for (const trans of transs) {
+      const id = `t_${bl}_${prod}_${trans}`;
+      const defaultVal = S.selectedTransTypes[`${bl}|${prod}|${trans}`] || 0;
+      const checked = defaultVal > 0;
+      rows += `
+        <div class="alloc-row">
+          <div class="name-cell">
+            <input type="checkbox" id="chk_${id}" data-bl="${esc(bl)}" data-prod="${esc(prod)}" data-trans="${esc(trans)}" ${checked ? 'checked' : ''}>
+            <label for="chk_${id}">${esc(trans)}${tooltipIcon(getGPMTooltip(trans))}</label>
+          </div>
+          <div>
+            <input type="number" id="num_${id}" data-bl="${esc(bl)}" data-prod="${esc(prod)}" data-trans="${esc(trans)}"
+              min="0" max="100" step="0.1" value="${defaultVal}"
+              style="display:${checked ? 'block' : 'none'}">
+          </div>
+          <div class="fte-cell" id="fte_${id}">
+            ${checked && S.numFteTotal ? fmt((defaultVal / 100) * S.numFteTotal * fteFactor, 2) : ''}
+          </div>
+        </div>`;
+    }
+    const weighted = fteFactor * S.numFteTotal;
+    const safeKey = `${bl}__${prod}`;
+    sections += `
+      <div class="card" style="margin-bottom:12px">
+        <h3 style="margin-top:0">${esc(bl)} › ${esc(prod)} <span style="font-weight:400;color:var(--text-muted)">(${fmt(weighted, 2)} FTEs)</span></h3>
+        <div class="alloc-wrap">
+          <div class="alloc-header"><span>Aktivita</span><span>Alokácia (%)</span><span>FTEs</span></div>
+          ${rows}
+          <div class="total-row">
+            <span>Alokácia pre ${esc(prod)}:</span>
+            <span class="total-val" id="tot_${safeKey}">0,0%</span>
+            <span id="terr_${safeKey}" class="total-err"></span>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  app.innerHTML = `
+    ${renderTitle()}
+    <div class="row-nav">
+      <button class="btn btn-secondary" id="btn_back">← Späť</button>
+      <button class="btn btn-primary" id="btn_next">Ďalej →</button>
+    </div>
+    <div class="step-badge">Krok 3 z 4</div>
+    <h2 style="margin-bottom:4px">Výber aktivity</h2>
+    <p class="sub">Pre každý vybraný produkt vyberte aktivity a rozdeľte alokáciu (100% pre každý produkt).</p>
+    ${sections}
+    <div id="save_err" class="alert alert-error" style="display:none"></div>`;
+
+  function updateTotals() {
+    let allValid = true;
+    for (const [pk, prodAlloc] of sortedProds) {
+      const [bl, prod] = pk.split('|');
+      const safeKey = `${bl}__${prod}`;
+      const blAlloc = S.selectedBls[bl] || 0;
+      let total = 0; let anyChecked = false;
+      document.querySelectorAll(`[data-bl="${bl}"][data-prod="${prod}"][id^="chk_t_"]`).forEach(chk => {
+        const trans = chk.dataset.trans;
+        const num = document.getElementById(`num_t_${bl}_${prod}_${trans}`);
+        const fte = document.getElementById(`fte_t_${bl}_${prod}_${trans}`);
+        num.style.display = chk.checked ? 'block' : 'none';
+        if (chk.checked) {
+          anyChecked = true;
+          const v = parseFloat(num.value) || 0; total += v;
+          if (S.numFteTotal) fte.textContent = fmt((v / 100) * S.numFteTotal * (blAlloc / 100) * (prodAlloc / 100), 2);
+        } else { fte.textContent = ''; }
+      });
+      const ok = anyChecked && Math.abs(total - 100) < 0.01;
+      const totEl = document.getElementById(`tot_${safeKey}`);
+      const terrEl = document.getElementById(`terr_${safeKey}`);
+      if (totEl) { totEl.textContent = `${fmt(total, 1)}%`; totEl.className = `total-val ${ok ? 'total-ok' : ''}`; }
+      if (terrEl) terrEl.textContent = ok ? '' : (!anyChecked ? '⚠️ Vyberte aspoň 1 aktivitu' : '⚠️ Musí byť presne 100%');
+      if (!ok) allValid = false;
+    }
+    document.getElementById('btn_next').disabled = !allValid;
+  }
+
+  document.querySelectorAll('[id^="chk_t_"], [id^="num_t_"]').forEach(el => {
+    el.addEventListener('input', updateTotals); el.addEventListener('change', updateTotals);
+  });
+  updateTotals();
+
+  document.getElementById('btn_back').addEventListener('click', () => { S.step = 'step2'; render(); });
+
+  document.getElementById('btn_next').addEventListener('click', async () => {
+    S.selectedTransTypes = {};
+    for (const [pk] of sortedProds) {
+      const [bl, prod] = pk.split('|');
+      document.querySelectorAll(`[data-bl="${bl}"][data-prod="${prod}"][id^="chk_t_"]`).forEach(chk => {
+        if (chk.checked) {
+          const trans = chk.dataset.trans;
+          S.selectedTransTypes[`${bl}|${prod}|${trans}`] = parseFloat(document.getElementById(`num_t_${bl}_${prod}_${trans}`)?.value) || 0;
+        }
+      });
+    }
+    const transSet = new Set(Object.keys(S.selectedTransTypes));
+    for (const k of Object.keys(S.selectedChannels)) {
+      const [bl, prod, trans] = k.split('|');
+      if (!transSet.has(`${bl}|${prod}|${trans}`)) delete S.selectedChannels[k];
+    }
+    saveInBackground('Step3');
+    S.step = 'step4'; render();
+  });
+}
+
+// -- STEP 4: Channels --
+function renderStep4() {
+  const app = document.getElementById('app');
+  const blOrdMap = Object.fromEntries(S.blUnique.map(x => [x.bl, x.order]));
+  const prodOrdMap = {};
+  for (const r of S.staticData.prodMaskOrder) prodOrdMap[r.DOM_ABC_PRD_MASK] = parseNum(r.PROD_ORDER ?? 999);
+  const gpmOrdMap = {};
+  for (const r of S.staticData.gpmOrder) gpmOrdMap[r.GPM_HIER] = parseNum(r.GPM_ORDER ?? 999);
+
+  const sortedTrans = Object.keys(S.selectedTransTypes).sort((a, b) => {
+    const [blA, pA, tA] = a.split('|'); const [blB, pB, tB] = b.split('|');
+    return (blOrdMap[blA] ?? 999) - (blOrdMap[blB] ?? 999)
+      || (prodOrdMap[pA] ?? 999) - (prodOrdMap[pB] ?? 999)
+      || (gpmOrdMap[tA] ?? 999) - (gpmOrdMap[tB] ?? 999);
+  });
+
+  let sections = '';
+  for (const tk of sortedTrans) {
+    const [bl, prod, trans] = tk.split('|');
+    const blAlloc = S.selectedBls[bl] || 0;
+    const prodAlloc = S.selectedProducts[`${bl}|${prod}`] || 0;
+    const transAlloc = S.selectedTransTypes[tk] || 0;
+    const chans = getSortedChannels(bl, prod, trans);
+    const fteFactor = (blAlloc / 100) * (prodAlloc / 100) * (transAlloc / 100);
+    let rows = '';
+    for (const chan of chans) {
+      const id = `c_${bl}_${prod}_${trans}_${chan}`;
+      const defaultVal = S.selectedChannels[`${bl}|${prod}|${trans}|${chan}`] || 0;
+      const checked = defaultVal > 0;
+      rows += `
+        <div class="alloc-row">
+          <div class="name-cell">
+            <input type="checkbox" id="chk_${id}" data-bl="${esc(bl)}" data-prod="${esc(prod)}" data-trans="${esc(trans)}" data-chan="${esc(chan)}" ${checked ? 'checked' : ''}>
+            <label for="chk_${id}">${esc(chan)}${tooltipIcon(getChannelTooltip(chan))}</label>
+          </div>
+          <div>
+            <input type="number" id="num_${id}" data-bl="${esc(bl)}" data-prod="${esc(prod)}" data-trans="${esc(trans)}" data-chan="${esc(chan)}"
+              min="0" max="100" step="0.1" value="${defaultVal}"
+              style="display:${checked ? 'block' : 'none'}">
+          </div>
+          <div class="fte-cell" id="fte_${id}">
+            ${checked && S.numFteTotal ? fmt((defaultVal / 100) * S.numFteTotal * fteFactor, 2) : ''}
+          </div>
+        </div>`;
+    }
+    const weighted = fteFactor * S.numFteTotal;
+    const safeKey = `${bl}__${prod}__${trans}`;
+    sections += `
+      <div class="card" style="margin-bottom:12px">
+        <h3 style="margin-top:0">${esc(bl)} › ${esc(prod)} › ${esc(trans)} <span style="font-weight:400;color:var(--text-muted)">(${fmt(weighted, 2)} FTEs)</span></h3>
+        <div class="alloc-wrap">
+          <div class="alloc-header"><span>Kanál</span><span>Alokácia (%)</span><span>FTEs</span></div>
+          ${rows}
+          <div class="total-row">
+            <span>Alokácia pre ${esc(trans)}:</span>
+            <span class="total-val" id="tot_${safeKey}">0,0%</span>
+            <span id="terr_${safeKey}" class="total-err"></span>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  app.innerHTML = `
+    ${renderTitle()}
+    <div class="row-nav">
+      <button class="btn btn-secondary" id="btn_back">← Späť</button>
+      <button class="btn btn-primary" id="btn_next">Hotovo</button>
+    </div>
+    <div class="step-badge">Krok 4 z 4</div>
+    <h2 style="margin-bottom:4px">Výber kanálov</h2>
+    <p class="sub">Pre každú vybranú aktivitu vyberte klientsky kanál a rozdeľte alokáciu (100% pre každú aktivitu).</p>
+    ${sections}
+    <div id="save_err" class="alert alert-error" style="display:none"></div>`;
+
+  function updateTotals() {
+    let allValid = true;
+    for (const tk of sortedTrans) {
+      const [bl, prod, trans] = tk.split('|');
+      const blAlloc = S.selectedBls[bl] || 0;
+      const prodAlloc = S.selectedProducts[`${bl}|${prod}`] || 0;
+      const transAlloc = S.selectedTransTypes[tk] || 0;
+      const fteFactor = (blAlloc / 100) * (prodAlloc / 100) * (transAlloc / 100);
+      const safeKey = `${bl}__${prod}__${trans}`;
+      let total = 0; let anyChecked = false;
+      document.querySelectorAll(`[data-bl="${bl}"][data-prod="${prod}"][data-trans="${trans}"][id^="chk_c_"]`).forEach(chk => {
+        const chan = chk.dataset.chan;
+        const num = document.getElementById(`num_c_${bl}_${prod}_${trans}_${chan}`);
+        const fte = document.getElementById(`fte_c_${bl}_${prod}_${trans}_${chan}`);
+        num.style.display = chk.checked ? 'block' : 'none';
+        if (chk.checked) {
+          anyChecked = true;
+          const v = parseFloat(num.value) || 0; total += v;
+          if (S.numFteTotal) fte.textContent = fmt((v / 100) * S.numFteTotal * fteFactor, 2);
+        } else { fte.textContent = ''; }
+      });
+      const ok = anyChecked && Math.abs(total - 100) < 0.01;
+      const totEl = document.getElementById(`tot_${safeKey}`);
+      const terrEl = document.getElementById(`terr_${safeKey}`);
+      if (totEl) { totEl.textContent = `${fmt(total, 1)}%`; totEl.className = `total-val ${ok ? 'total-ok' : ''}`; }
+      if (terrEl) terrEl.textContent = ok ? '' : (!anyChecked ? '⚠️ Vyberte aspoň 1 kanál' : '⚠️ Musí byť presne 100%');
+      if (!ok) allValid = false;
+    }
+    document.getElementById('btn_next').disabled = !allValid;
+  }
+
+  document.querySelectorAll('[id^="chk_c_"], [id^="num_c_"]').forEach(el => {
+    el.addEventListener('input', updateTotals); el.addEventListener('change', updateTotals);
+  });
+  updateTotals();
+
+  document.getElementById('btn_back').addEventListener('click', () => { S.step = 'step3'; render(); });
+
+  document.getElementById('btn_next').addEventListener('click', async () => {
+    S.selectedChannels = {};
+    for (const tk of sortedTrans) {
+      const [bl, prod, trans] = tk.split('|');
+      document.querySelectorAll(`[data-bl="${bl}"][data-prod="${prod}"][data-trans="${trans}"][id^="chk_c_"]`).forEach(chk => {
+        if (chk.checked) {
+          const chan = chk.dataset.chan;
+          S.selectedChannels[`${bl}|${prod}|${trans}|${chan}`] = parseFloat(document.getElementById(`num_c_${bl}_${prod}_${trans}_${chan}`)?.value) || 0;
+        }
+      });
+    }
+    saveInBackground('Submitted');
+    S.step = 'summary'; render();
+  });
+}
+
+// -- SUMMARY --
+function renderSummary() {
+  const app = document.getElementById('app');
+  const rows = [];
+  let finalTotal = 0;
+
+  for (const [bk, blAlloc] of Object.entries(S.selectedBls)) {
+    for (const [pk, prodAlloc] of Object.entries(S.selectedProducts)) {
+      const [pbl, prod] = pk.split('|'); if (pbl !== bk) continue;
+      for (const [tk, transAlloc] of Object.entries(S.selectedTransTypes)) {
+        const [tbl, tprod, trans] = tk.split('|'); if (tbl !== bk || tprod !== prod) continue;
+        for (const [ck, chanAlloc] of Object.entries(S.selectedChannels)) {
+          const [cbl, cprod, ctrans, chan] = ck.split('|');
+          if (cbl !== bk || cprod !== prod || ctrans !== trans) continue;
+          const fa = blAlloc * prodAlloc * transAlloc * chanAlloc / 1_000_000;
+          finalTotal += fa;
+          const wfte = (blAlloc / 100) * (prodAlloc / 100) * (transAlloc / 100) * (chanAlloc / 100) * S.numFteTotal;
+          rows.push({ bl: bk, blPct: blAlloc, prod, prodPct: prodAlloc, trans, transPct: transAlloc, chan, chanPct: chanAlloc, alloc: fa, wfte });
+        }
+      }
+    }
+  }
+
+  const tableRows = rows.map(r =>
+    `<tr><td>${esc(r.bl)}</td><td>${fmt(r.blPct, 1)}</td><td>${esc(r.prod)}</td><td>${fmt(r.prodPct, 1)}</td>
+     <td>${esc(r.trans)}</td><td>${fmt(r.transPct, 1)}</td><td>${esc(r.chan)}</td><td>${fmt(r.chanPct, 1)}</td>
+     <td>${fmt(r.alloc, 4)}</td><td>${fmt(r.wfte, 2)}</td></tr>`
+  ).join('');
+
+  // Build CSV for download
+  const csvHeader = 'Business Line;BL (%);Product;Product (%);Aktivita;Aktivita (%);Kanál;Kanál (%);Alokácia (%);Weighted FTE\n';
+  const csvRows = rows.map(r =>
+    [r.bl, fmt(r.blPct, 1), r.prod, fmt(r.prodPct, 1), r.trans, fmt(r.transPct, 1), r.chan, fmt(r.chanPct, 1), fmt(r.alloc, 4), fmt(r.wfte, 2)].join(';')
+  ).join('\n');
+  const csvData = csvHeader + csvRows;
+
+  let filename = `ABC_dotaznik_${S.cc}`;
+  const ccR = S.staticData.ccDesc?.find(x => String(x.ID || '').trim() === String(S.cc).trim());
+  if (ccR) filename += `_${ccR.TXT_DESCRIPTION}`;
+  filename += '.csv';
+
+  app.innerHTML = `
+    ${renderTitle()}
+    <div class="alert alert-success">✅ Všetky alokácie boli úspešne zadané a uložené!</div>
+    <div style="display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap">
+      <button class="btn btn-secondary" id="btn_back">← Späť</button>
+      <button class="btn download-btn" id="btn_dl">↓ Stiahnuť CSV</button>
+    </div>
+    <div class="card">
+      <h2 style="margin-bottom:12px">Výsledná alokácia</h2>
+      <div class="metric"><div class="metric-label">Celková finálna alokácia</div><div class="metric-val">${fmt(finalTotal, 4)}%</div></div>
+      <div style="overflow-x:auto;margin-top:16px">
+        <table class="summary-table">
+          <thead><tr>
+            <th>Business Line</th><th>BL (%)</th><th>Product</th><th>Prod (%)</th>
+            <th>Aktivita</th><th>Akt (%)</th><th>Kanál</th><th>Kanál (%)</th>
+            <th>Alokácia (%)</th><th>FTE</th>
+          </tr></thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+      </div>
+    </div>`;
+
+  document.getElementById('btn_back').addEventListener('click', () => { S.step = 'step4'; render(); });
+  document.getElementById('btn_dl').addEventListener('click', () => {
+    const blob = new Blob(['\uFEFF' + csvData], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  });
+}
+
+// -- BS STEP 1 --
+function renderBsStep1() {
+  const app = document.getElementById('app');
+  const bls = S.blUnique;
+  const { blOrder } = S.staticData;
+  const tooltipMap = {};
+  for (const r of blOrder) { if (r.TOOLTIP) tooltipMap[r.BL] = r.TOOLTIP; }
+
+  // Pre-populate from saved BS data
+  if (S.dynamicData.savedBs) {
+    const bsRows = S.dynamicData.savedBs.filter(r =>
+      String(r.COST_CENTER || '').trim() === String(S.cc).trim() &&
+      (String(r.VERSION || '').trim() === String(S.actVersion).trim() ||
+       String(r.VERSION || '').trim() === String(S.prevVersion).trim())
+    );
+    const actBsRows = bsRows.filter(r => String(r.VERSION || '').trim() === String(S.actVersion).trim());
+    const sourceRows = actBsRows.length ? actBsRows : bsRows;
+    for (const r of sourceRows) {
+      const bl = String(r.BL || '').trim();
+      const rat = parseNum(r.RAT_TOTAL);
+      if (bl && rat > 0) S.selectedBls[bl] = rat;
+    }
+  }
+
+  let rows = '';
+  for (const { bl, label } of bls) {
+    const id = `bs_${bl}`;
+    const checked = bl in S.selectedBls;
+    const alloc = S.selectedBls[bl] || 0;
+    rows += `
+      <div class="alloc-row">
+        <div class="name-cell">
+          <input type="checkbox" id="chk_${id}" data-bl="${esc(bl)}" ${checked ? 'checked' : ''}>
+          <label for="chk_${id}">${esc(label)}${tooltipIcon(tooltipMap[bl] || '')}</label>
+        </div>
+        <div>
+          <input type="number" id="num_${id}" data-bl="${esc(bl)}" min="0" max="100" step="0.1"
+            value="${alloc}" style="display:${checked ? 'block' : 'none'}">
+        </div>
+        <div class="fte-cell" id="fte_${id}">
+          ${checked && S.numFteTotal ? fmt((alloc / 100) * S.numFteTotal, 2) : ''}
+        </div>
+      </div>`;
+  }
+
+  app.innerHTML = `
+    ${renderTitle()}
+    <div class="row-nav">
+      <button class="btn btn-secondary" id="btn_back">← Zmeniť údaje</button>
+      <button class="btn btn-primary" id="btn_done">Uložiť</button>
+    </div>
+    <div class="card">
+      <div class="step-badge">BS Formulár</div>
+      <h2>Výber biznis línií a segmentov</h2>
+      <p class="sub">Vyberte biznis línie, ktorým venujete čas, a rozdeľte medzi nimi alokáciu (100%).</p>
+      <div class="section-label">Business Lines</div>
+      <div class="alloc-wrap">
+        <div class="alloc-header"><span>Názov</span><span>Alokácia (%)</span><span>FTEs</span></div>
+        ${rows}
+        <div class="total-row">
+          <span>Celková alokácia:</span>
+          <span class="total-val" id="total_val">0,0%</span>
+          <span id="total_err" class="total-err"></span>
+        </div>
+      </div>
+      <div id="save_err" class="alert alert-error" style="display:none; margin-top:12px"></div>
+    </div>`;
+
+  function update() {
+    let total = 0; let anyChecked = false;
+    for (const { bl } of bls) {
+      const chk = document.getElementById(`chk_bs_${bl}`);
+      const num = document.getElementById(`num_bs_${bl}`);
+      const fte = document.getElementById(`fte_bs_${bl}`);
+      if (!chk) continue;
+      num.style.display = chk.checked ? 'block' : 'none';
+      if (chk.checked) {
+        anyChecked = true;
+        const v = parseFloat(num.value) || 0; total += v;
+        if (S.numFteTotal) fte.textContent = fmt((v / 100) * S.numFteTotal, 2);
+      } else { fte.textContent = ''; }
+    }
+    const ok = anyChecked && Math.abs(total - 100) < 0.01;
+    document.getElementById('total_val').textContent = `${fmt(total, 1)}%`;
+    document.getElementById('total_val').className = `total-val ${ok ? 'total-ok' : ''}`;
+    document.getElementById('total_err').textContent = ok ? '' : (total > 0 ? '⚠️ Musí byť presne 100%' : '');
+    document.getElementById('btn_done').disabled = !ok;
+  }
+
+  document.querySelectorAll('[id^="chk_bs_"], [id^="num_bs_"]').forEach(el => {
+    el.addEventListener('input', update); el.addEventListener('change', update);
+  });
+  update();
+
+  document.getElementById('btn_back').addEventListener('click', () => {
+    S.step = 'user_input'; S.selectedBls = {}; render();
+  });
+
+  document.getElementById('btn_done').addEventListener('click', () => {
+    S.selectedBls = {};
+    for (const { bl } of bls) {
+      const chk = document.getElementById(`chk_bs_${bl}`);
+      const num = document.getElementById(`num_bs_${bl}`);
+      if (chk?.checked) S.selectedBls[bl] = parseFloat(num?.value) || 0;
+    }
+    saveBsInBackground();
+    S.step = 'bs_summary'; render();
+  });
+}
+
+// -- BS SUMMARY --
+function renderBsSummary() {
+  const app = document.getElementById('app');
+  const rows = Object.entries(S.selectedBls).map(([bl, alloc]) => {
+    const wfte = (alloc / 100) * S.numFteTotal;
+    return `<tr><td>${esc(bl)}</td><td>${fmt(alloc, 1)}</td><td>${fmt(wfte, 2)}</td></tr>`;
+  }).join('');
+
+  const csvData = 'Business Line;Alokácia (%);FTE\n' +
+    Object.entries(S.selectedBls).map(([bl, a]) => `${bl};${fmt(a, 1)};${fmt((a/100)*S.numFteTotal, 2)}`).join('\n');
+  let filename = `BS_dotaznik_${S.cc}`;
+  const ccR = S.staticData.ccDesc?.find(x => String(x.ID || '').trim() === String(S.cc).trim());
+  if (ccR) filename += `_${ccR.TXT_DESCRIPTION}`;
+  filename += '.csv';
+
+  app.innerHTML = `
+    ${renderTitle()}
+    <div class="alert alert-success">✅ Všetky alokácie boli úspešne zadané a uložené!</div>
+    <div style="display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap">
+      <button class="btn btn-secondary" id="btn_back">← Späť</button>
+      <button class="btn download-btn" id="btn_dl">↓ Stiahnuť CSV</button>
+    </div>
+    <div class="card">
+      <h2 style="margin-bottom:16px">Výsledná alokácia</h2>
+      <div style="overflow-x:auto">
+        <table class="summary-table">
+          <thead><tr><th>Business Line</th><th>Alokácia (%)</th><th>FTE</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+
+  document.getElementById('btn_back').addEventListener('click', () => { S.step = 'bs_step1'; render(); });
+  document.getElementById('btn_dl').addEventListener('click', () => {
+    const blob = new Blob(['\uFEFF' + csvData], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob); const a = document.createElement('a');
+    a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
+  });
+}
+
+// ==================== INIT ====================
+async function init() {
+  S.step = 'loading'; render();
+  try {
+    const [staticData, dynamicData] = await Promise.all([
+      fetch('/api/data').then(r => r.json()),
+      fetch('/api/dynamic-data').then(r => r.json()),
+    ]);
+    if (staticData.error) throw new Error(staticData.error);
+    if (dynamicData.error) throw new Error(dynamicData.error);
+    S.staticData = staticData;
+    S.dynamicData = dynamicData;
+    S.step = 'user_input';
+  } catch (e) {
+    S.step = 'error'; S.errorMsg = e.message;
+  }
+  render();
+}
+
+init();
+</script>
+</body>
+</html>
