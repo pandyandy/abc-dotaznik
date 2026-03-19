@@ -11,7 +11,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
 app.use(express.json({ limit: '50mb' }));
 
-const PORT = process.env.PORT || 8050;
+const PORT = 8050;
 const KEBOOLA_URL = (process.env.KBC_URL || process.env.KEBOOLA_URL || '').replace(/\/$/, '');
 const TOKEN = process.env.KBC_TOKEN || process.env.STORAGE_API_TOKEN;
 
