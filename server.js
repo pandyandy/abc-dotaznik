@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import express from 'express';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -12,8 +11,8 @@ const app = express();
 app.use(express.json({ limit: '50mb' }));
 
 const PORT = 8050;
-const KEBOOLA_URL = (process.env.KEBOOLA_URL || '').replace(/\/$/, '');
-const TOKEN = process.env.KBC_TOKEN || process.env.STORAGE_API_TOKEN;
+const KEBOOLA_URL = (process.env.KEBOOLA_URL || process.env.KBC_URL || '').replace(/\/$/, '');
+const TOKEN = process.env.STORAGE_API_TOKEN;
 
 const TABLES = {
   trans_data:          'out.c-ABC.ABC_FORM_VALIDATION_DATA',
