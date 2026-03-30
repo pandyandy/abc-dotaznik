@@ -12,7 +12,7 @@ const app = express();
 app.use(express.json({ limit: '50mb' }));
 
 const PORT = 8050;
-const KEBOOLA_URL = (process.env.KBC_URL || process.env.KEBOOLA_URL || '').replace(/\/$/, '');
+const KEBOOLA_URL = (process.env.KEBOOLA_URL || '').replace(/\/$/, '');
 const TOKEN = process.env.KBC_TOKEN || process.env.STORAGE_API_TOKEN;
 
 const TABLES = {
