@@ -5,6 +5,7 @@ requires-python = ">=3.11"
 dependencies = [
     "kbcstorage>=0.7.0",
     "pandas>=2.2.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [build-system]
