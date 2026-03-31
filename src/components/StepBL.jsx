@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { getSortedBls, applyProductMask } from '../utils/hierarchy';
 import { fmtNum } from '../utils/format';
 
-export default function StepBL({ staticData, state, saving, hierarchy, onBack, onNext, onSave }) {
+export default function StepBL({ staticData, state, hierarchy, onBack, onNext, onSave }) {
   const { blOrder, fteData, actVersion } = staticData;
   const { cc, selectedBls: initBls } = state;
 
@@ -33,7 +33,7 @@ export default function StepBL({ staticData, state, saving, hierarchy, onBack, o
     setAllocs((a) => ({ ...a, [bl]: parseFloat(val) || 0 }));
   };
 
-  const handleNext = async () => {
+  const handleNext = () => {
     const selectedBls = {};
     for (const b of selectedList) selectedBls[b.bl] = allocs[b.bl] || 0;
 
@@ -53,7 +53,7 @@ export default function StepBL({ staticData, state, saving, hierarchy, onBack, o
       ratTotal: 0,
     }));
 
-    await onSave(rows, 'Step1');
+    onSave(rows, 'Step1');
     onNext(selectedBls);
   };
 
@@ -135,10 +135,10 @@ export default function StepBL({ staticData, state, saving, hierarchy, onBack, o
 
       <button
         className="btn-primary"
-        disabled={!totalOk || saving}
+        disabled={!totalOk}
         onClick={handleNext}
       >
-        {saving ? 'Ukladám…' : 'Ďalej →'}
+        Ďalej →
       </button>
     </div>
   );

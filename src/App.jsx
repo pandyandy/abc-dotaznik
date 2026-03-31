@@ -15,6 +15,30 @@ import StepSummary from './components/StepSummary';
 import StepBSForm from './components/StepBSForm';
 import StepBSSummary from './components/StepBSSummary';
 
+const ABC_STEPS  = ['step1', 'step2', 'step3', 'step4', 'summary'];
+const ABC_LABELS = ['Biznis línie', 'Produkty', 'Aktivity', 'Kanály', 'Zhrnutie'];
+const BS_STEPS   = ['bs_step1', 'bs_summary'];
+const BS_LABELS  = ['Alokácia', 'Zhrnutie'];
+
+function StepProgress({ currentStep, steps, labels }) {
+  const currentIdx = steps.indexOf(currentStep);
+  const items = [];
+  steps.forEach((step, i) => {
+    if (i > 0) {
+      items.push(
+        <div key={`conn-${step}`} className={`step-progress-connector${i <= currentIdx ? ' done' : ''}`} />
+      );
+    }
+    items.push(
+      <div key={step} className={`step-progress-item${i < currentIdx ? ' done' : i === currentIdx ? ' active' : ''}`}>
+        <div className="step-progress-num">{i < currentIdx ? '✓' : i + 1}</div>
+        <div className="step-progress-label">{labels[i]}</div>
+      </div>
+    );
+  });
+  return <div className="step-progress">{items}</div>;
+}
+
 const INIT = {
   step: 'user_input',
   userId: null,
@@ -34,45 +58,100 @@ export default function App() {
   const [hierarchy, setHierarchy] = useState(null);
   const [state, setState] = useState(INIT);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [loadElapsedSec, setLoadElapsedSec] = useState(0);
+  const [saveStatus, setSaveStatus] = useState(null); // null | 'saving' | 'saved' | 'error'
   const [error, setError] = useState(null);
 
-  // ── Load static data once ──────────────────────────────────────────────────
+  // ── Load everything in one request (server runs all Storage exports in parallel) ──
   useEffect(() => {
-    fetch('/api/static-data')
-      .then((r) => r.json())
-      .then((data) => {
+    let cancelled = false;
+    const t0 = Date.now();
+    const tickId = setInterval(() => {
+      if (!cancelled) setLoadElapsedSec(Math.floor((Date.now() - t0) / 1000));
+    }, 1000);
+
+    (async () => {
+      try {
+        console.info('[app] GET /api/data (proxied to port 3000 in dev) …');
+        const res = await fetch('/api/data');
+        const text = await res.text();
+        if (!res.ok) {
+          throw new Error(
+            `HTTP ${res.status}: ${text.slice(0, 280) || res.statusText}`
+          );
+        }
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          throw new Error(
+            'API nevrátila JSON. Beží backend? Spustite `npm run dev:all` alebo v druhom termináli `npm start`.'
+          );
+        }
         if (data.error) throw new Error(data.error);
-        setStaticData(data);
-        setHierarchy(buildHierarchy(data.transData));
-        setLoading(false);
-      })
-      .catch((e) => {
-        setError(e.message);
-        setLoading(false);
-      });
+        const { ccUser, savedForms, savedBs, ...staticPart } = data;
+        if (!cancelled) {
+          setStaticData(staticPart);
+          setDynamicData({ ccUser, savedForms, savedBs });
+          setHierarchy(buildHierarchy(data.transData));
+        }
+      } catch (e) {
+        let msg = e.message || String(e);
+        if (
+          msg === 'Failed to fetch' ||
+          /network/i.test(msg) ||
+          /load failed/i.test(msg)
+        ) {
+          msg +=
+            ' Spustite API a UI spolu: `npm run dev:all`, alebo `npm start` (port 3000) a v druhom okne `npm run dev`.';
+        }
+        if (!cancelled) setError(msg);
+      } finally {
+        clearInterval(tickId);
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      clearInterval(tickId);
+    };
   }, []);
 
   const refreshDynamic = useCallback(async () => {
-    const res = await fetch('/api/dynamic-data');
+    if (!staticData?.actVersion) {
+      const empty = { ccUser: [], savedForms: [], savedBs: [] };
+      setDynamicData(empty);
+      return empty;
+    }
+    const q = new URLSearchParams({
+      actVersion: staticData.actVersion,
+      prevVersion: staticData.prevVersion ?? '',
+    });
+    const res = await fetch(`/api/dynamic-data?${q}`);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     setDynamicData(data);
     return data;
-  }, []);
+  }, [staticData]);
 
-  // ── Load dynamic data on mount ─────────────────────────────────────────────
-  useEffect(() => {
-    if (!staticData) return;
-    refreshDynamic().catch((e) => setError(e.message));
-  }, [staticData, refreshDynamic]);
+  // ── Dynamic data is included in /api/data; refreshDynamic() is for user actions only ──
 
   // ── Step: user_input → continue ───────────────────────────────────────────
   const handleUserInputNext = useCallback(
     async (userId, cc) => {
-      setLoading(true);
       try {
-        const dyn = await refreshDynamic();
+        // Initial /api/data already loaded cc_user + saved_* — no need to hit Keboola again.
+        let dyn = dynamicData;
+        const haveDyn =
+          dyn &&
+          Array.isArray(dyn.savedForms) &&
+          Array.isArray(dyn.savedBs) &&
+          Array.isArray(dyn.ccUser);
+        if (!haveDyn) {
+          setLoading(true);
+          dyn = await refreshDynamic();
+        }
         const { savedForms, savedBs, ccUser } = dyn;
         const { actVersion, prevVersion, prodMaskOrder, channelMaskOrder } = staticData;
 
@@ -126,55 +205,61 @@ export default function App() {
         setLoading(false);
       }
     },
-    [staticData, refreshDynamic]
+    [staticData, dynamicData, refreshDynamic]
   );
 
-  // ── Generic save helper ────────────────────────────────────────────────────
+  // ── Generic save helper (fire-and-forget — navigation does not wait for Keboola write) ──
   const saveForm = useCallback(
-    async (rows, status) => {
-      setSaving(true);
-      try {
-        const res = await fetch('/api/save-form', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: state.userId,
-            cc: state.cc,
-            actVersion: staticData.actVersion,
-            status,
-            rows,
-          }),
-        });
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-        await refreshDynamic();
-      } finally {
-        setSaving(false);
-      }
+    (rows, status) => {
+      setSaveStatus('saving');
+      fetch('/api/save-form', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: state.userId,
+          cc: state.cc,
+          actVersion: staticData.actVersion,
+          status,
+          rows,
+        }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.error) throw new Error(data.error);
+          if (data.savedForms)
+            setDynamicData((d) => (d ? { ...d, savedForms: data.savedForms } : d));
+          else refreshDynamic();
+          setSaveStatus('saved');
+          setTimeout(() => setSaveStatus((s) => (s === 'saved' ? null : s)), 3000);
+        })
+        .catch(() => setSaveStatus('error'));
     },
     [state.userId, state.cc, staticData, refreshDynamic]
   );
 
   const saveBs = useCallback(
-    async (allocations) => {
-      setSaving(true);
-      try {
-        const res = await fetch('/api/save-bs', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: state.userId,
-            cc: state.cc,
-            actVersion: staticData.actVersion,
-            allocations,
-          }),
-        });
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-        await refreshDynamic();
-      } finally {
-        setSaving(false);
-      }
+    (allocations) => {
+      setSaveStatus('saving');
+      fetch('/api/save-bs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: state.userId,
+          cc: state.cc,
+          actVersion: staticData.actVersion,
+          allocations,
+        }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.error) throw new Error(data.error);
+          if (data.savedBs)
+            setDynamicData((d) => (d ? { ...d, savedBs: data.savedBs } : d));
+          else refreshDynamic();
+          setSaveStatus('saved');
+          setTimeout(() => setSaveStatus((s) => (s === 'saved' ? null : s)), 3000);
+        })
+        .catch(() => setSaveStatus('error'));
     },
     [state.userId, state.cc, staticData, refreshDynamic]
   );
@@ -186,30 +271,51 @@ export default function App() {
   const resetToUserInput = () => setState(INIT);
 
   // ── Render ─────────────────────────────────────────────────────────────────
-  const title = state.ccDesc
-    ? `ABC dotazník – ${state.ccDesc}`
-    : 'ABC dotazník';
+  const header = (
+    <header className="app-header">
+      <div className="app-header-inner">
+        <img src="/slsp.png" className="app-logo" alt="Slovenská sporiteľňa" />
+        <span className="app-header-label">ABC dotazník</span>
+      </div>
+    </header>
+  );
 
   if (error) {
     return (
-      <div className="app-wrapper">
-        <div className="msg msg-error">
-          <strong>Chyba:</strong> {error}
-          <br />
-          <button className="btn-secondary" style={{ marginTop: 10 }} onClick={() => setError(null)}>
-            Skúsiť znova
-          </button>
+      <div className="page-root">
+        {header}
+        <div className="app-wrapper">
+          <div className="msg msg-error">
+            <strong>Chyba:</strong> {error}
+            <br />
+            <button className="btn-secondary" style={{ marginTop: 10 }} onClick={() => setError(null)}>
+              Skúsiť znova
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
   if (loading || !staticData) {
+    const bootstrapping = !staticData;
     return (
-      <div className="app-wrapper">
-        <div className="loading-overlay">
+      <div className="page-root">
+        {header}
+        <div className="loading-page">
           <div className="spinner" />
-          <span>Načítavam dáta z Keboola…</span>
+          {bootstrapping ? (
+            <>
+              <span>Načítavam dáta z Keboola… ({loadElapsedSec}s)</span>
+              <p className="loading-hint">
+                Prvé načítanie volá Storage API (12 tabuliek naraz) — môže trvať desiatky sekúnd.
+                Logy s časovaním tabuliek uvidíte v termináli, kde beží <code>npm start</code> /{' '}
+                <code>npm run dev:all</code>.
+              </p>
+            </>
+          ) : (
+            <span>Obnovujem dáta…</span>
+          )}
         </div>
       </div>
     );
@@ -219,15 +325,22 @@ export default function App() {
     staticData,
     dynamicData,
     state,
-    saving,
     onResetToUserInput: resetToUserInput,
   };
 
   return (
-    <div className="app-wrapper">
-      <div className="app-header">
-        <h1>📊 {title}</h1>
-      </div>
+    <div className="page-root">
+      {header}
+
+      {saveStatus && (
+        <div className={`save-toast save-toast-${saveStatus}`}>
+          {saveStatus === 'saving' && 'Ukladám...'}
+          {saveStatus === 'saved' && '✓ Uložené'}
+          {saveStatus === 'error' && '✗ Chyba pri ukladaní'}
+        </div>
+      )}
+
+      <div className="app-wrapper">
 
       {/* DEBUG strip – remove before go-live */}
       <div className="debug-strip">
@@ -236,6 +349,13 @@ export default function App() {
         {state.cc ? ` | CC: ${state.cc}` : ''}
         {state.currentStatusSnapshot ? ` | Status: ${state.currentStatusSnapshot}` : ''}
       </div>
+
+      {ABC_STEPS.includes(state.step) && (
+        <StepProgress currentStep={state.step} steps={ABC_STEPS} labels={ABC_LABELS} />
+      )}
+      {BS_STEPS.includes(state.step) && (
+        <StepProgress currentStep={state.step} steps={BS_STEPS} labels={BS_LABELS} />
+      )}
 
       {state.step === 'user_input' && (
         <StepUserInput
@@ -317,6 +437,8 @@ export default function App() {
           onBack={() => goTo('bs_step1')}
         />
       )}
+
+      </div>
     </div>
   );
 }

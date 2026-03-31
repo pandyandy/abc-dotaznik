@@ -12,7 +12,6 @@ export default function StepActivities({
   staticData,
   dynamicData,
   state,
-  saving,
   hierarchy,
   onBack,
   onNext,
@@ -136,7 +135,7 @@ export default function StepActivities({
     if (selected.length === 0 || Math.abs(total - 100) > 0.01) allValid = false;
   }
 
-  const handleNext = async () => {
+  const handleNext = () => {
     const selectedTransTypes = {};
     for (const { bl, product } of sortedEntries()) {
       const types = getSortedTransTypes(hierarchy, gpmOrder, bl, product);
@@ -166,7 +165,7 @@ export default function StepActivities({
       });
     }
 
-    await onSave(rows, 'Step3');
+    onSave(rows, 'Step3');
     onNext(selectedTransTypes);
   };
 
@@ -268,8 +267,8 @@ export default function StepActivities({
         );
       })}
 
-      <button className="btn-primary" disabled={!allValid || saving} onClick={handleNext}>
-        {saving ? 'Ukladám…' : 'Ďalej →'}
+      <button className="btn-primary" disabled={!allValid} onClick={handleNext}>
+        Ďalej →
       </button>
     </div>
   );

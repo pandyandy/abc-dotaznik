@@ -6,7 +6,6 @@ export default function StepBSForm({
   staticData,
   dynamicData,
   state,
-  saving,
   hierarchy,
   onBack,
   onNext,
@@ -66,7 +65,7 @@ export default function StepBSForm({
     setAllocs((a) => ({ ...a, [bl]: parseFloat(val) || 0 }));
   };
 
-  const handleNext = async () => {
+  const handleNext = () => {
     const selectedBls = {};
     for (const b of selectedList) selectedBls[b.bl] = allocs[b.bl] || 0;
 
@@ -80,7 +79,7 @@ export default function StepBSForm({
       };
     });
 
-    await onSave(allocations);
+    onSave(allocations);
     onNext(selectedBls);
   };
 
@@ -159,10 +158,10 @@ export default function StepBSForm({
 
       <button
         className="btn-primary"
-        disabled={!totalOk || saving}
+        disabled={!totalOk}
         onClick={handleNext}
       >
-        {saving ? 'Ukladám…' : 'Hotovo'}
+        Hotovo
       </button>
     </div>
   );

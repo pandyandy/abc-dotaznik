@@ -11,7 +11,6 @@ export default function StepProducts({
   staticData,
   dynamicData,
   state,
-  saving,
   hierarchy,
   onBack,
   onNext,
@@ -87,7 +86,7 @@ export default function StepProducts({
     if (selected.length === 0 || Math.abs(total - 100) > 0.01) allValid = false;
   }
 
-  const handleNext = async () => {
+  const handleNext = () => {
     const selectedProducts = {};
     for (const { bl } of sortedBls) {
       const products = getSortedProducts(hierarchy, blOrder, prodMaskOrder, bl);
@@ -117,7 +116,7 @@ export default function StepProducts({
       });
     }
 
-    await onSave(rows, 'Step2');
+    onSave(rows, 'Step2');
     onNext(selectedProducts);
   };
 
@@ -216,8 +215,8 @@ export default function StepProducts({
         );
       })}
 
-      <button className="btn-primary" disabled={!allValid || saving} onClick={handleNext}>
-        {saving ? 'Ukladám…' : 'Ďalej →'}
+      <button className="btn-primary" disabled={!allValid} onClick={handleNext}>
+        Ďalej →
       </button>
     </div>
   );

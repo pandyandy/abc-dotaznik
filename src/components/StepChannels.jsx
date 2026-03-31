@@ -13,7 +13,6 @@ export default function StepChannels({
   staticData,
   dynamicData,
   state,
-  saving,
   hierarchy,
   onBack,
   onNext,
@@ -118,7 +117,7 @@ export default function StepChannels({
     if (selected.length === 0 || Math.abs(total - 100) > 0.01) allValid = false;
   }
 
-  const handleNext = async () => {
+  const handleNext = () => {
     const selectedChannels = {};
     for (const { bl, product, transType } of sortedEntries()) {
       const channels = getSortedChannels(hierarchy, channelMaskOrder, bl, product, transType);
@@ -153,7 +152,7 @@ export default function StepChannels({
       });
     }
 
-    await onSave(rows, 'Submitted');
+    onSave(rows, 'Submitted');
     onNext(selectedChannels);
   };
 
@@ -261,8 +260,8 @@ export default function StepChannels({
         );
       })}
 
-      <button className="btn-primary" disabled={!allValid || saving} onClick={handleNext}>
-        {saving ? 'Ukladám…' : 'Hotovo'}
+      <button className="btn-primary" disabled={!allValid} onClick={handleNext}>
+        Hotovo
       </button>
     </div>
   );
